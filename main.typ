@@ -4,7 +4,7 @@
   #align(
     center,
     text(25pt)[
-      #image("logo.png", width: 30%)
+      #image("assets/logo.png", width: 30%)
       *#title*
       #set text(16pt)
 
@@ -903,7 +903,7 @@ Thanks to all peer reviewers, and especially Marius Weidner and Christian Weber,
 
 
 #page[
-  #bibliography(("types.bib", "original.bib", "nixos.bib"))
+  #bibliography(("bib/types.bib", "bib/original.bib", "bib/nixos.bib"))
 ]
 
 #page[
