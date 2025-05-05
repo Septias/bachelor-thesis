@@ -11,7 +11,7 @@
       \
 
       *Bachelor Thesis* - Sebastian Klähn\
-      #text(12pt)[*sebastian.klaehn\@merkur.uni-freiburg.de*]
+      #text(12pt)[*sebastian.klaehn\@email.uni-freiburg.de*]
 
       #set text(12pt)
 
@@ -645,7 +645,7 @@ The simple subtyping rule for homogenous lists and a typing rule for arrays is i
     derive(
       "T-Lst-Agg",
       ($Γ tack t_0: τ_0$, "...", $Γ tack t_n: τ_n$),
-      $Γ tack [space t_0 space t_1 space ... " " t_n] <= [ τ_0 space τ_1 space ... space τ_n]$,
+      $Γ tack [space t_0 space t_1 space ... " " t_n] : [ τ_0 space τ_1 space ... space τ_n]$,
     ),
   ))
 ]
@@ -655,7 +655,7 @@ The simple subtyping rule for homogenous lists and a typing rule for arrays is i
 
 The Nix language has arithmetic, logic, comparison, and some specialized operators for sets and lists. Operators need special handling because of their runtime semantics, which allows them to combine and mix some of their operator types but not all. \
 The logic operators $and, or, ->, ¬$ and arithmetic operators $+, -, \/, *$ are trivial as they only allow numbers and, respectively, booleans as operands. #smallcaps("T-Op-Arith") and #smallcaps("T-Op-Logic") (@operator_typing_rules) rules are used to handle these operators. Addition $(+)$ is defined for strings, paths, and numbers, and it is also possible to mix strings and paths under addition. The first operand is always the deciding factor for the type of the operation. Due to this heavy overloading, three typing rules #smallcaps("T-Add-Num, T-Add-Str, T-Add-Path") are needed. \
-The comparison operators $<, <=, >, >=, !=$, and $==$ behave as expected for numbers. Paths and strings are determined lexicographically, but it is worth noting that cross-comparisons between strings and paths are not allowed perpendicular to how addition behaves. Arrays are compared element-wise, up to the first deciding element, and records do not support comparisons even though a depth and width-based comparison would, in theory, be possible.
+The comparison operators $<, <=, >, >=, !=$, and $==$ behave as expected for numbers. Paths and strings are determined lexicographically, but it is worth noting that cross-comparisons between strings and paths are not possible and always return false. Arrays are compared element-wise, up to the first deciding element, and records do not support comparisons even though a depth and width-based comparison would, in theory, be possible.
 
 To type and constrain the above monotone operators with no crossed types, the first operand is checked, and if it is a primitive type, the second type is constrained to the same type. If the first operand is a type variable, the second operand might give a hint upon which the type variable can be constrained. The only unhandled case is when both operands are type variables, leaving us with the only option to add lower bounds for all supported operands on both variables.
 
