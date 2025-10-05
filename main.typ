@@ -120,8 +120,11 @@ Function definitions consist of a pattern followed by a double colon (:) and a f
     # A function that expects one AttrSet with _at least_ the two specified fields.
     fun4 = {x, y, ...}: x + y;
 
-    # Nested set patterns are not allowed
+    # Nested set patterns are _not_ allowed
     fun5 = {x, {y}}: y;
+    
+    # All bindings can be bound to a set
+    fun5 = {x, x} @ bindings: bindings.x;
   }
   ```]
 
@@ -285,7 +288,7 @@ The main improvement to HM is that it adds subtyping polymorphism to the languag
 Both Dolan @original and Parreaux @main discuss the simple MLSub language in their paper, whose type and syntax definition are given in @SimpleSubDefinition. The syntax specification extends the known λ-calculus rules for functions and applications with records, field accesses, and let bindings. Although it is not imminent from the typing rules, the `rec` keyword that marks a let binding as recursive is optional. The type definition contains the usual λ-calculus types and extends them with SimpleSub-specific types needed for subtyping. $top$ and $bot$ are the unit and empty type, the union and intersection type $τ union.sq τ$ and $τ inter.sq τ$ as well as the recursive type $μ α. τ$ are further discussed in @union and @recursion.
 
 #figure(
-  caption: "Syntax and type definition of SimpleSub",
+  caption: "Syntax and type definition of SimpleSub.",
   [
     $
       t := x | λ x.t | t space t | {l_0 = t; ...; l_n = t} | t.l | "let rec" x = t "in" t
@@ -454,9 +457,6 @@ Union and intersection types are used to model subtype relations between types o
 Recursive types are types of the form $μ α. (T -> α)$ that references themselves in their definition and can be unrolled indefinitely $T -> μ α. (T -> α)$, $T -> T ->μ α. (T -> α)$, $T -> T -> T -> ...$ @main. A practical example of a recursive type is the call-by-value Y-Combinator of ML that throws away its arguments and returns itself @original. This function is not typeable in ML at all, but SimpleSub and SimpleNix support it and could type it with any of the following types $T -> T, T -> (T -> T), T -> (T -> (T -> T), ...$. To concisely express this type, the recursive type $μ α. (T -> α)$ is needed. In MLsub, as specified by Lionel Parreaux @main, recursiveness is introduced with recursive let-bindings that can reference themselves in their definition.
 SimpleNix supports the same let-recursion and adds recursion in set definitions. By allowing recursion in sets and multi-let bindings, two types of recursion can happen: primitive recursion of the shown form that can be typed using $μ α. (T -> a)$ and mutual recursion between two types. While primitive recursion is allowed in Nix, mutual recursion is detected by the evaluator and results in an error.
 
-=== Type Simplification
-Even though type-coalescing is enough to create principle types, types produced by type inference contain unnecessary structures and type variables, making the types bloated and hard to comprehend. A simplification step is thus needed to create usable types. While Dolan @original draws the line between types and finite automata, which enables one to leverage existing techniques for automata reduction, the SimpleSub Paper by Parreaux @main uses a more naive approach with a collection of hands-on reductions that can directly be applied to the output types. Even though the code was not shown in the paper and simplification was only briefly discussed, the associated repository provides simplification code that SimpleNix can leverage in the future.
-
 #let derive(name, prem, conclusion) = [
   #table(
     stroke: none,
@@ -622,7 +622,7 @@ Records are primitives in @main and can be typed with #smallcaps("S-Rcd"), @simp
 ]
 
 === Lists
-The list type in Nix is very versatile in that it allows the concatenation of any arbitrary elements to each other. While this gives the most power to the programmer, it is notoriously hard to derive a type for these lists. A list type that aggregates all item types to a list type best describes the underlying structure but is very rigid and impossible to apply to generic functions like maps that would expect a homogenous list with elements of type T. The other option is to optimistically check every list item and create a homogenous list type [T] for arrays that only inhabit one element type. While this is possible, it would already be useless for lists that consist of string and path elements. An aggregate type would be created for these lists because string and path are principally different, even though they are used interchangeably in practice. SimpleNix sticks to the latter approach and tries to create a pure list but resorts to an enumeration otherwise.
+The list type in Nix is very versatile in that it allows the concatenation of arbitrary elements to each other. While this gives the most power to the programmer, it is notoriously hard to derive a type for these lists. A list type that aggregates all item types to a list type best describes the underlying structure but is very rigid and impossible to apply to generic functions like maps that would expect a homogenous list with elements of type T. The other option is to optimistically check every list item and create a homogenous list type [T] for arrays that only inhabit one element type. While this is possible, it would already be useless for lists that consist of string and path elements. An aggregate type would be created for these lists because string and path are principally different, even though they are used interchangeably in practice. SimpleNix sticks to the latter approach and tries to create a pure list but resorts to an enumeration otherwise.
 
 #figure(
   align(left)[
@@ -669,14 +669,13 @@ The `or` operator extends the check operator in that it returns a default value 
 #figure(
   caption: "Operator Syntax extension.",
   align(left)[
-
     _Syntax extension (arithmetic):_ $t ::= ... | t + t | t - t | t * t | t space \/ space t$
 
     _Syntax extension (logic):_ $t ::= ... | (t "&&" t) | (t "||" t) | (t -> t) | !t$
 
     _Syntax extension (comparisons):_ $t ::= ... | t < t | t <= t | t >= t | t > t | t == t | t != t$
 
-    Syntax extension (helpers): $t ::= ... | t "? " l | t "//" t | t "++" t | t.l "or" t$
+    _Syntax extension (helpers):_ $t ::= ... | t "? " l | t "//" t | t "++" t | t.l "or" t$
     #v(8pt)
   ],
 )
@@ -759,7 +758,7 @@ Primitive function definitions, like the ones in MLSub, only allow single identi
 Pattern constraining flows contrary to how identifier arguments are constrained. Identifiers are introduced as empty type variables and constrained based on their usage in the function's body. Patterns already define a structure that only partially changes with the function's body. All fields of the pattern must be added as fresh variables to the context because they might be referred in the function's body just as normal top-level arguments. These new variables are either added empty if they define no default value or with a constraint for the default value if it exists. The pattern argument x of g `g: {x ? 1, y}` would be added as a variable with a constraint on `num` while the identifier for y would be added without constraints. \
 The alias that can be specified with the \@-syntax refers to the whole argument that was supplied to the function. Trivially, it also has to be added to the context, and in the simple case of a wildcard pattern, it only needs a record constraint. If it is not a wildcard pattern, it must be added with a pattern constraint so that the constraint function can throw an error if too many fields are supplied.
 
-Due to the new pattern type, constraining has to account for the case that a function with a pattern argument is called. If the given value is a record itself, the provided fields can be compared one by another, and if all fields exist and subsume the pattern fields, constraining succeeds. In case the pattern is not a wildcard pattern, it has to be checked that the given record does not have any additional fields, and an error has to be raised otherwise. If the value given to the function is a type variable, we can only constrain the type variable to have all requested fields.
+Due to the new pattern type, constraining has to account for the case that a function with a pattern argument is called. If the given value is a record itself, the provided fields can be compared one by one, and if all fields exist and subsume the pattern fields, constraining succeeds. In case the pattern is not a wildcard pattern, it has to be checked that the given record does not have any additional fields, and an error has to be raised otherwise. If the value given to the function is a type variable, we can only constrain the type variable to have all requested fields.
 
 #figure(
   caption: "Function syntax definition.",
@@ -779,7 +778,7 @@ Due to the new pattern type, constraining has to account for the case that a fun
 
 
 === Conditionals
-Conditionals are not part of the core language specification for SimpleSub, as they can easily be added to the language by prefilling the context with `f: bool → α → α → α` and rewriting the if construct as an application to this function @main. It has been shown by Dolan @original that `f: bool → α → α → α` is a subtype of the more natural-looking type $f: "bool" → γ → β → γ union.sq β$ that explicitly allows both branches to have different types by substituting $α = γ union.sq β$. Nix has the same syntax and semantics for if statements, so a similar approach can be used. In practice, it is important to create errors referencing proper code locations so that conditionals have to be handled explicitly, but that is only an implementation decision.
+Conditionals are not part of the core language specification for SimpleSub, as they can easily be added to the language by prefilling the context with `f: bool → α → α → α` and rewriting the if construct as an application to this function @main. It has been shown by Dolan @original that `f: bool → α → α → α` is a subtype of the more natural-looking type $f: "bool" → γ → β → γ union.sq β$ that explicitly allows both branches to have different types by substituting $α = γ union.sq β$. Nix has the same syntax and semantics for if statements, so a similar approach could be used. In practice, it is important to create errors referencing proper code locations so that conditionals have to be handled explicitly, but that is only an implementation decision.
 
 #figure(
   caption: "Syntax and typing rules for conditionals.",
@@ -844,19 +843,11 @@ Assertions precede expressions and allow for early program exit if some conditio
     _Syntax extension(assert)_: $t::= ... | "assert" t; t;$
   ]
 
-  #derive("T-Assert", ($Γ tack t_1: τ_1$, $Γ tack t_2: τ_2$), $Γ tack "assert" t_1; t_2: t_2$)
+  #derive("T-Assert", ($Γ tack t_1: "As<bool>"$, $Γ tack t_2: τ_2$), $Γ tack "assert" t_1; t_2: τ₂$)
 ]
 
-
-=== Large Expressions and Lazy Type Inference
-The Nix package repository contains over 80.000 packages and is the largest package repository in existence. The public #link("https://github.com/NixOS/nixpkgs")[nixpkgs] Github mono repository provides all packages, the standard library, NixOS, and a lot of utility functions from its root Nix file. Importing this root file and evaluating the whole package tree takes an unfeasible amount of time, making type inference unpractical slow. This is why SimpleNix is not _yet_ applicable for common practical tasks like configuration writing and flaking. \
-For now, the Garnix project restricts itself to single-file type inference without multi-file support, as adding even the most basic import for the nixpkgs would make type inference unusable and slow.
-
-To eventually overcome this, the following simple approach should suffice. Import statements usually aren't located at the top of the file but rather in code wherever they are needed. This makes import statements a good candidate for code splitting during type inference. Only when an uninitialized field is needed during tree traversal should the related expression be imported and inferred. This should, in theory, make package completion possible as packages are defined in one big record(mapping) between the package name and import statements for that package. A smart language server could thus create the full list of packages and lazily load more information about them upon package selection, greatly improving the developer experience. Similar approaches should be possible for option and module auto-completion, which have similar structures.
-
 == Examples
-The repository associated with this bachelor thesis at https://github.com/Septias/garnix
-contains the parser, inference algorithm, and language server. The inference algorithm and parser are heavily tested and are good sources for determining what SimpleNix is capable of. What follows is a short showcase of type inference in SimpleNix.
+The repository associated with this Bachelor Thesis at https://github.com/Septias/garnix contains the parser, inference algorithm, and language server. The inference algorithm and parser are heavily tested and are good sources for determining what SimpleNix is capable of. What follows is a short showcase of type inference in SimpleNix.
 
 The trivial cases for primitive types produce proper types, and list types are reduced to homogenous lists.
 ```rust
@@ -870,7 +861,7 @@ coalesced("{ x = {y = 1;};}") // {x: {y: Number}}
 Functions get the correct function type and properly constrain records. The last function is an example from @main that showcases type inference and type coalescing. Notice that occurrences of `Var(num)` have been replaced by proper type variable names $α, β, γ, δ, ...$ to improve notation. Also, proper type simplification still has to be added, which is why some types still have unnecessary type variables.
 
 ```rust
-coalesced("x: x + "hi";") // "α ∧ String -> (String)"
+coalesced(r#"x: x + "hi";"#) // "α ∧ String -> (String)"
 coalesced("x: x.y") // "α ∧ {y: β} -> β"
 coalesced("f: x: f (f x)") // "α ∧ (β -> γ) ∧ (γ -> δ) -> β -> δ"
 ```
@@ -897,6 +888,14 @@ Part of my contribution is a language server for the Nix language. It acts as a 
 This thesis implements and extends the SimpleSub type inference algorithm, finally bringing type inference to the Nix programming language by providing a language server and a rust parser for the Nix language. This, together with other great recent improvements in documentation, language servers, and evaluators, lays the first stepping stones for great developer experience in Nix. \
 To make Garnix applicable in general, the remaining problems of type simplification and unbound variables, which were out of the scope of this thesis, need to be resolved. The Garnix repository is left with a permissive Apache 3.0 license, making it a public domain, and will undergo continuous development in the future to eventually overcome these problems.
 
+=== Large Expressions and Lazy Type Inference
+The Nix package repository contains over 80.000 packages and is the largest package repository in existence. The public #link("https://github.com/NixOS/nixpkgs")[nixpkgs] Github mono repository provides all packages, the standard library, NixOS, and a lot of utility functions from its root Nix file. Importing this root file and evaluating the whole package tree takes an unfeasible amount of time, making type inference unpractical slow. This is why SimpleNix is not _yet_ applicable for common practical tasks like configuration writing and flaking. \
+For now, the Garnix project restricts itself to single-file type inference without multi-file support, as adding even the most basic import for the nixpkgs would make type inference unusable and slow.
+
+To eventually overcome this, the following simple approach should suffice. Import statements usually aren't located at the top of the file but rather in code wherever they are needed. This makes import statements a good candidate for code splitting during type inference. Only when an uninitialized field is needed during tree traversal should the related expression be imported and inferred. This should, in theory, make package completion possible as packages are defined in one big record(mapping) between the package name and import statements for that package. A smart language server could thus create the full list of packages and lazily load more information about them upon package selection, greatly improving the developer experience. Similar approaches should be possible for option and module auto-completion, which have similar structures.
+
+=== Type Simplification
+Even though type-coalescing is enough to create principle types, types produced by type inference contain unnecessary structures and type variables, making the types bloated and hard to comprehend. A simplification step is thus needed to create usable types. While Dolan @original draws the line between types and finite automata, which enables one to leverage existing techniques for automata reduction, the SimpleSub Paper by Parreaux @main uses a more naive approach with a collection of hands-on reductions that can directly be applied to the output types. Even though the code was not shown in the paper and simplification was only briefly discussed, the associated repository provides simplification code that SimpleNix can leverage in the future.
 
 = Acknowledgements
 Thanks to all peer reviewers, and especially Marius Weidner and Christian Weber, for their great support during and after writing this thesis.
