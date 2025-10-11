@@ -1,28 +1,28 @@
 #let title = [SimpleNix: Type Inference for Nix]
 
-#page(footer: align(center, "Department of Computer Science University Freiburg"))[
-  #align(
-    center,
-    text(25pt)[
-      #image("assets/logo.png", width: 30%)
-      *#title*
-      #set text(16pt)
+#page(footer: align(
+  center,
+  "Department of Computer Science University Freiburg",
+))[
+  #align(center, text(25pt)[
+    #image("assets/logo.png", width: 30%)
+    *#title*
+    #set text(16pt)
 
-      \
+    \
 
-      *Bachelor Thesis* - Sebastian Klähn\
-      #text(12pt)[*sebastian.klaehn\@email.uni-freiburg.de*]
+    *Bachelor Thesis* - Sebastian Klähn\
+    #text(12pt)[*sebastian.klaehn\@email.uni-freiburg.de*]
 
-      #set text(12pt)
+    #set text(12pt)
 
-      \
+    \
 
-      #text(tracking: 0.5pt)[*Examiner*]: #h(2pt) Prof. Dr. Peter Thiemann \
-      #text(tracking: 0.5pt)[*Advisor*]: #h(2pt) Prof. Dr. Peter Thiemann
+    #text(tracking: 0.5pt)[*Examiner*]: #h(2pt) Prof. Dr. Peter Thiemann \
+    #text(tracking: 0.5pt)[*Advisor*]: #h(2pt) Prof. Dr. Peter Thiemann
 
-      \
-    ],
-  )
+    \
+  ])
   #align(center)[
     #set par(justify: true)
     #pad(x: 15pt, top: 10pt, bottom: 20pt)[
@@ -33,10 +33,7 @@
 ]
 
 #set page(
-  header: align(
-    right,
-    smallcaps("Nix Type Inference"),
-  ),
+  header: align(right, smallcaps("Nix Type Inference")),
   numbering: "1",
   number-align: right,
 )
@@ -122,7 +119,7 @@ Function definitions consist of a pattern followed by a double colon (:) and a f
 
     # Nested set patterns are _not_ allowed
     fun5 = {x, {y}}: y;
-    
+
     # All bindings can be bound to a set
     fun5 = {x, x} @ bindings: bindings.x;
   }
@@ -164,117 +161,105 @@ It is also possible to add default values to set patterns in case the given set 
 === Let Bindings
 Let bindings can be used to introduce new named variables accessible in the body of the let binding. A let-binding starts with the `let` keyword and is followed by a finite number of assignments. An assignment is of the form `var = expr;` where `expr` is an arbitrary expression that reduces to a value which is then bound to the name `var`. All defined values are available in other assignments as well, allowing self-reference structs like these: `let x = {y = x;} in {inherit x;}` where any number of `.y` accesses is allowed and produces the same output `{y = {...};}`.
 
-#figure(
-  caption: "let-binding",
-  [
-    ```nix
-    # A Simple let binding
-    let x = 1; in x;
+#figure(caption: "let-binding", [
+  ```nix
+  # A Simple let binding
+  let x = 1; in x;
 
-    # A Let binding with two bound variables and a none-primitive body.
-    let x = 1; y = x + 1; in y + 2;
+  # A Let binding with two bound variables and a none-primitive body.
+  let x = 1; y = x + 1; in y + 2;
 
-    # A let binding with mutual referencing bindings
-    let x = "Max"; y = x + " Mustermann"; in { concat = "Hello" + x;};
+  # A let binding with mutual referencing bindings
+  let x = "Max"; y = x + " Mustermann"; in { concat = "Hello" + x;};
 
-    # A self-referencing let binding.
-    let x = {y = x;} in { inherit x; };
+  # A self-referencing let binding.
+  let x = {y = x;} in { inherit x; };
 
-    # x.y = {y = {...};}
-    # x.y.y.y = {y = {...};}
-    ```
-  ],
-)
+  # x.y = {y = {...};}
+  # x.y.y.y = {y = {...};}
+  ```
+])
 
 === With <with>
 With-statements can precede any expression and introduce all fields of the given AttrSet in the following body. This is a utility construct to reduce repetition in cases where many fields from an AttrSet are needed. When specifying the packages for NixOS or Home-manager, it is not uncommon to prefix the list with `with pkgs;` as the package list is very long most of the time.
 
-#figure(
-  caption: "with-statement",
-  [
-    ```nix
-    {
-      # Making all fields from pkgs (80.000 elements) available
-      packages1 = [ pkgs.code pkgs.fz pkgs.git ];
-      packages2 = with pkgs; [code fz git];
+#figure(caption: "with-statement", [
+  ```nix
+  {
+    # Making all fields from pkgs (80.000 elements) available
+    packages1 = [ pkgs.code pkgs.fz pkgs.git ];
+    packages2 = with pkgs; [code fz git];
 
-      # Introducing a name directly from a set
-      with1 = with { name = "John"; }; name;
-    }
-    ```
-  ],
-)
+    # Introducing a name directly from a set
+    with1 = with { name = "John"; }; name;
+  }
+  ```
+])
 
 === Inherit <inherit>
 Inherits statements are syntactic sugar to reintroduce known names into let-bindings or AttrSets. Using an inherit statement is essentially the same as re-declaring a variable `x = x;` but it comes in handy for sets and records. During configuration, it is oftentimes important to reexport a lot of expressions, maybe from a deeply nested record. Inherit bindings allow for the specification of a record from which names should be imported, making it easy to reintroduce a lot of bindings quickly. The same applies to let-bindings, where it is oftentimes needed to import auxiliary functions from outer scopes.
 
-#figure(
-  caption: "Usage of the inherit statement",
-  [
-    ```nix
-    # A simple inherit statement
-    let
-      set1 = { y = 1; };
-      set2 = { inherit set1; };
-    in {};
-    # Is equivalent to
-    let
-      set1 = { y = 1; };
-      set2 = { set1 = set1; };
-    in {};
+#figure(caption: "Usage of the inherit statement", [
+  ```nix
+  # A simple inherit statement
+  let
+    set1 = { y = 1; };
+    set2 = { inherit set1; };
+  in {};
+  # Is equivalent to
+  let
+    set1 = { y = 1; };
+    set2 = { set1 = set1; };
+  in {};
 
-    # Inherit in a let-binding
+  # Inherit in a let-binding
+  let
+    x = { name = "john"; surname = "smith";};
+  in
     let
-      x = { name = "john"; surname = "smith";};
-    in
-      let
-        inherit (x) name surname;
-        full_name = name + surname;
-      in
-        full_name;
-    # Is equivalent to
-    let x = { name = "john"; surname = "smith";}; in
-      let name = x.name; surname = x.surname;
+      inherit (x) name surname;
       full_name = name + surname;
-      in
-        full_name;
+    in
+      full_name;
+  # Is equivalent to
+  let x = { name = "john"; surname = "smith";}; in
+    let name = x.name; surname = x.surname;
+    full_name = name + surname;
+    in
+      full_name;
 
-    # Inherit using a base-path
-    let x = { y = { z = 1; };}; in {
-      inherit (x.y) z;
-    };
-    # This is equivalent to
-    let x = { y = { z = 1; };}; in {
-      z = x.y.z;
-    }
-    ```
-  ],
-)
+  # Inherit using a base-path
+  let x = { y = { z = 1; };}; in {
+    inherit (x.y) z;
+  };
+  # This is equivalent to
+  let x = { y = { z = 1; };}; in {
+    z = x.y.z;
+  }
+  ```
+])
 
 === String Interpolation
 String interpolation is used to insert the evaluated content of any expression into strings and paths. It can also be used to dynamically access or mutate AttrSet fields.
 
-#figure(
-  caption: "String interpolation",
-  [
-    ```nix
-    {
-      user = "septias";
-      program = "nushell";
-      # String interpolation for paths
-      path = ./home/${user}/.config/${program}/config.toml;
+#figure(caption: "String interpolation", [
+  ```nix
+  {
+    user = "septias";
+    program = "nushell";
+    # String interpolation for paths
+    path = ./home/${user}/.config/${program}/config.toml;
 
-      # String interpolation for strings
-      string = "Toms surname is ${surname}";
+    # String interpolation for strings
+    string = "Toms surname is ${surname}";
 
-      # String interpolation for records
-      attrset = { ${field} = value;};
-      field = "name";
-      name = { name = "John"; surname = "Smith"; }.${field + "name"};
-    }
-    ```
-  ],
-)
+    # String interpolation for records
+    attrset = { ${field} = value;};
+    field = "name";
+    name = { name = "John"; surname = "Smith"; }.${field + "name"};
+  }
+  ```
+])
 
 = Parser
 Part of my contribution is a parser for the previously defined nix language written in Rust, which is available as part of the mono repo at https://github.com/Septias/garnix.git. The parser is written with the combinator style crate `nom` and uses #link("https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html")[Pratt Parsing] to parse expressions with different operator precedence.
@@ -472,94 +457,109 @@ SimpleNix supports the same let-recursion and adds recursion in set definitions.
   )
 ]
 
-#let pad_stack(ct) = stack(
-  dir: ltr,
-  spacing: 3em,
-  ..ct,
-)
+#let pad_stack(ct) = stack(dir: ltr, spacing: 3em, ..ct)
 
 #let to_stack(item) = pad_stack(item)
 
 #let typings(caption, items) = figure(
-  align(
-    center,
-    grid(
-      align: center,
-      ..items.map(pad_stack)
-    ),
-  ),
+  align(center, grid(
+    align: center,
+    ..items.map(pad_stack)
+  )),
   caption: caption,
 )
 
 === Specification of SimpleSub
 What follows is the specification of SimpleSub @main that refers to the syntax and type definition in @SimpleSubDefinition. The typing rules in @simplesub-typings contain the usual λ-calculus rules for functions #smallcaps("T-Abs, T-App") and add record and let-binding rules #smallcaps("T-Rcd, T-Proj"), and #smallcaps("T-Let"). #smallcaps("T-Sub") is needed for subtyping and the #smallcaps("T-var") rule is specialized in that it allows any number of generalized variables α. \
 
-#typings(
-  [Typing rules for SimpleSub @main, slightly adjusted for notation.],
+#typings([Typing rules for SimpleSub @main, slightly adjusted for notation.], (
   (
-    (
-      derive("T-Var", ($x: ∀ arrow(α). space τ in Γ$,), $Γ tack x: τ[arrow(α) \\ arrow(τ)]$),
-      derive("T-Abs", ($Γ, x: τ_1 tack t: τ_2$,), $Γ tack λ x. t: τ_1 → τ_2$),
-      derive("T-App", ($Γ tack t_1: τ_1 → τ_2$, $Γ tack t_2: τ_1$), $t_1 t_2: τ_2$),
+    derive(
+      "T-Var",
+      ($x: ∀ arrow(α). space τ in Γ$,),
+      $Γ tack x: τ[arrow(α) \\ arrow(τ)]$,
     ),
-    (
-      derive(
-        "T-Rcd",
-        ($Γ tack t_0: τ_0$, "...", $Γ tack t_n: τ_n$),
-        $Γ tack {arrow(l): arrow(t)}: {arrow(l): arrow(τ)}$,
-      ),
-      derive("T-Proj", ($ Γ tack t: {l: τ} $,), $Γ tack t.l: τ$),
-      derive("T-Sub", ($Γ tack t: τ_1$, $τ_1 <= τ_2$), $Γ tack t: τ_2$),
-    ),
-    (
-      derive(
-        "T-Let",
-        ($Γ, x: τ_1 tack t_1 : τ_1$, $Γ, x: ∀ arrow(α). τ_1 tack t_2: τ_2$),
-        $Γ tack "let rec" x = t_1 "in" t_2: τ_2$,
-      ),
+    derive("T-Abs", ($Γ, x: τ_1 tack t: τ_2$,), $Γ tack λ x. t: τ_1 → τ_2$),
+    derive(
+      "T-App",
+      ($Γ tack t_1: τ_1 → τ_2$, $Γ tack t_2: τ_1$),
+      $t_1 t_2: τ_2$,
     ),
   ),
-) <simplesub-typings>
+  (
+    derive(
+      "T-Rcd",
+      ($Γ tack t_0: τ_0$, "...", $Γ tack t_n: τ_n$),
+      $Γ tack {arrow(l): arrow(t)}: {arrow(l): arrow(τ)}$,
+    ),
+    derive("T-Proj", ($ Γ tack t: {l: τ} $,), $Γ tack t.l: τ$),
+    derive("T-Sub", ($Γ tack t: τ_1$, $τ_1 <= τ_2$), $Γ tack t: τ_2$),
+  ),
+  (
+    derive(
+      "T-Let",
+      ($Γ, x: τ_1 tack t_1 : τ_1$, $Γ, x: ∀ arrow(α). τ_1 tack t_2: τ_2$),
+      $Γ tack "let rec" x = t_1 "in" t_2: τ_2$,
+    ),
+  ),
+)) <simplesub-typings>
 
 For subtyping, the subtyping context $Sigma$ is used and extended with subtyping hypotheses $H$, which are added during constraining. The subtyping rules are given in @simplesub-typings. The respective rules #smallcaps("S-Weaken, S-Assum and S-Hyp") are used to handle such typing hypotheses. The rules #smallcaps("S-Refl") and #smallcaps("S-Trans") are common subtyping rules, and #smallcaps("S-Rec") is needed to subtype recursive types. The remaining rules, #smallcaps("S-Or, S-And, S-Fun, S-Rcd") and #smallcaps("S-Depth"), are needed for unions, intersections, functions, and records.
 
 #figure(
-  align(
-    center,
-    grid(
-      align: center,
-      pad_stack((
-        derive("S-Refl", (), $τ <= τ$),
-        derive("S-Trans", ($Σ tack τ_0 <= τ_1$, $Σ tack τ_1 <= τ_2$), $Σ tack τ_0 <= τ_2$),
-        derive("S-Weaken", ($H$,), $Σ tack H$),
-        derive("S-Assume", ($Σ,gt.tri H tack H$,), $Σ tack H$),
-      )),
-      pad_stack((
-        derive("S-Hyp", ($H in Σ$,), $Σ tack H$),
-        derive("S-Rec", (), $μ α.τ eq.triple [μ α.τ slash α]τ$),
-        derive("S-Or", ($∀ i, exists j,Σ tack τ_i <= τ'_j$,), $Σ tack union.sq_i τ_i <= union.sq_j τ'_j$),
-        derive("S-And", ($∀ i, exists j,Σ tack τ_j <= τ'_i$,), $Σ tack inter.sq_j τ_j <= inter.sq_i τ'_i$),
-      )),
-      pad_stack((
-        derive(
-          "S-Fun",
-          ($lt.tri Σ tack τ_0 <= τ_1$, $lt.tri Σ tack τ_2 <= τ_3$),
-          $Σ tack τ_1 arrow.long τ_2 <= τ_0 arrow.long τ_3$,
-        ),
-        derive("S-Rcd", (), ${arrow(t) : arrow(τ)} eq.triple inter.sq_i {l_i : t_i}$),
-        derive("S-Depth", ($lt.tri Σ tack τ_1 <= τ_2$,), $Σ tack {l: τ_1} <= { l: τ_2}$),
-      )),
-      v(10pt)
-      ,
-      pad_stack((
-        $lt.tri(H_0, H_1) = lt.tri H_0, lt.tri H_1$,
-        $lt.tri(gt.tri H) = H$,
-        $lt.tri ( τ_0 <= τ_1) = τ_0 <= τ_1$,
-      ))
-      ,
-      v(10pt)
-    ),
-  ),
+  align(center, grid(
+    align: center,
+    pad_stack((
+      derive("S-Refl", (), $τ <= τ$),
+      derive(
+        "S-Trans",
+        ($Σ tack τ_0 <= τ_1$, $Σ tack τ_1 <= τ_2$),
+        $Σ tack τ_0 <= τ_2$,
+      ),
+      derive("S-Weaken", ($H$,), $Σ tack H$),
+      derive("S-Assume", ($Σ,gt.tri H tack H$,), $Σ tack H$),
+    )),
+    pad_stack((
+      derive("S-Hyp", ($H in Σ$,), $Σ tack H$),
+      derive("S-Rec", (), $μ α.τ eq.triple [μ α.τ slash α]τ$),
+      derive(
+        "S-Or",
+        ($∀ i, exists j,Σ tack τ_i <= τ'_j$,),
+        $Σ tack union.sq_i τ_i <= union.sq_j τ'_j$,
+      ),
+      derive(
+        "S-And",
+        ($∀ i, exists j,Σ tack τ_j <= τ'_i$,),
+        $Σ tack inter.sq_j τ_j <= inter.sq_i τ'_i$,
+      ),
+    )),
+    pad_stack((
+      derive(
+        "S-Fun",
+        ($lt.tri Σ tack τ_0 <= τ_1$, $lt.tri Σ tack τ_2 <= τ_3$),
+        $Σ tack τ_1 arrow.long τ_2 <= τ_0 arrow.long τ_3$,
+      ),
+      derive(
+        "S-Rcd",
+        (),
+        ${arrow(t) : arrow(τ)} eq.triple inter.sq_i {l_i : t_i}$,
+      ),
+      derive(
+        "S-Depth",
+        ($lt.tri Σ tack τ_1 <= τ_2$,),
+        $Σ tack {l: τ_1} <= { l: τ_2}$,
+      ),
+    )),
+    v(10pt)
+    ,
+    pad_stack((
+      $lt.tri(H_0, H_1) = lt.tri H_0, lt.tri H_1$,
+      $lt.tri(gt.tri H) = H$,
+      $lt.tri ( τ_0 <= τ_1) = τ_0 <= τ_1$,
+    ))
+    ,
+    v(10pt)
+  )),
   caption: [Subtyping rules of SimpleSub@main, slightly adjusted for notation.],
 ) <subtyping-rules>
 
@@ -605,17 +605,14 @@ The Nix language, instead of only one primitive, supports booleans, strings, pat
 ) <primitive-def>
 
 
-#typings(
-  "Primitives typing rules.",
+#typings("Primitives typing rules.", (
   (
-    (
-      derive("T-Bool", ($$,), $ Γ tack b: "bool" $),
-      derive("T-Path", ($$,), $ Γ tack s: "path" $),
-      derive("T-String", ($$,), $ Γ tack p: "string" $),
-      derive("T-Num", ($$,), $ Γ tack n: "num" $),
-    ),
+    derive("T-Bool", ($$,), $ Γ tack b: "bool" $),
+    derive("T-Path", ($$,), $ Γ tack s: "path" $),
+    derive("T-String", ($$,), $ Γ tack p: "string" $),
+    derive("T-Num", ($$,), $ Γ tack n: "num" $),
   ),
-)
+))
 
 === Records
 Records are primitives in @main and can be typed with #smallcaps("S-Rcd"), @simplesub-typings from SimpleSub. The only distinction between MLSub and Nix is that Nix allows self-referential records with the `rec` keyword, which has two important implications. Firstly, the order of evaluation can no longer be arbitrary because fields can reference each other in arbitrary order. To account for this, the context has to be extended with all record fields up-front, and inference has to jump to unevaluated names in case they are referenced. Secondly, by allowing self-references, it is possible to create two forms of recursion: primitive and mutual recursion. While the first one is allowed, the second is not as explained in @recursion.
@@ -683,78 +680,97 @@ The `or` operator extends the check operator in that it returns a default value 
   ],
 )
 
-#typings(
-  "Operator typing rules 1.",
+#typings("Operator typing rules 1.", (
   (
-    (
-      derive(
-        "T-Op-Arith",
-        ($Γ tack t_1: "num"$, $Γ tack t_2: "num"$, $"op" ϵ space [-, +, \/, *]$),
-        $Γ tack t_1 "op" t_2: "num"$,
-      ),
-      derive(
-        "T-Op-Logic",
-        ($Γ tack t_1: "bool"$, $Γ tack t_2: "bool"$, $"op" ϵ space [->, ∨, ∧]$),
-        $Γ tack t_1 "op" t_2: "bool"$,
-      ),
+    derive(
+      "T-Op-Arith",
+      ($Γ tack t_1: "num"$, $Γ tack t_2: "num"$, $"op" ϵ space [-, +, \/, *]$),
+      $Γ tack t_1 "op" t_2: "num"$,
     ),
-    (
-      derive("T-Add-Num", ($Γ tack t_1: "num"$, $Γ tack t_2: "num"$), $Γ tack t_1 + t_2: "num"$),
-      derive("T-Add-Str", ($Γ tack t_1: "str"$, $Γ tack t_2: "str" union.sq "path"$), $Γ tack t_1 + t_2: "str"$),
-      derive("T-Add-Path", ($Γ tack t_1: "path"$, $Γ tack t_2: "path" union.sq "str"$), $Γ tack t_1 + t_2: "path"$),
-    ),
-    (
-      derive(
-        "T-Compare",
-        ($Γ tack t_1: τ_1$, $Γ tack t_2: τ_2$, $τ_1 eq.triple τ_2$, $"op" in [<, <=, >=, >, ==, !=]$),
-        $Γ tack t_1 "op" t_2: "bool"$,
-      ),
-    ),
-    (
-      derive("T-Negate", ($Γ tack e: "bool"$,), $Γ tack !e: "bool"$),
-      derive("T-Check", ($Γ tack e: {l: τ}$,), $Γ tack e ? l: "bool"$),
-      derive("T-Or", ($Γ tack t_1: {l: τ_1}$, $Γ tack t_2: τ_2$), $Γ tack t_1.l "or" t_2: τ_1 union.sq τ_2$),
+    derive(
+      "T-Op-Logic",
+      ($Γ tack t_1: "bool"$, $Γ tack t_2: "bool"$, $"op" ϵ space [->, ∨, ∧]$),
+      $Γ tack t_1 "op" t_2: "bool"$,
     ),
   ),
-) <operator_typing_rules>
+  (
+    derive(
+      "T-Add-Num",
+      ($Γ tack t_1: "num"$, $Γ tack t_2: "num"$),
+      $Γ tack t_1 + t_2: "num"$,
+    ),
+    derive(
+      "T-Add-Str",
+      ($Γ tack t_1: "str"$, $Γ tack t_2: "str" union.sq "path"$),
+      $Γ tack t_1 + t_2: "str"$,
+    ),
+    derive(
+      "T-Add-Path",
+      ($Γ tack t_1: "path"$, $Γ tack t_2: "path" union.sq "str"$),
+      $Γ tack t_1 + t_2: "path"$,
+    ),
+  ),
+  (
+    derive(
+      "T-Compare",
+      (
+        $Γ tack t_1: τ_1$,
+        $Γ tack t_2: τ_2$,
+        $τ_1 eq.triple τ_2$,
+        $"op" in [<, <=, >=, >, ==, !=]$,
+      ),
+      $Γ tack t_1 "op" t_2: "bool"$,
+    ),
+  ),
+  (
+    derive("T-Negate", ($Γ tack e: "bool"$,), $Γ tack !e: "bool"$),
+    derive("T-Check", ($Γ tack e: {l: τ}$,), $Γ tack e ? l: "bool"$),
+    derive(
+      "T-Or",
+      ($Γ tack t_1: {l: τ_1}$, $Γ tack t_2: τ_2$),
+      $Γ tack t_1.l "or" t_2: τ_1 union.sq τ_2$,
+    ),
+  ),
+)) <operator_typing_rules>
 
 
 === Mutating Lists and Records <mutating_lists_and_records>
 Concatenating two lists is straightforward if both types are proper lists, as a new list type with all elements of the first and second list can be concatenated. Type variables complicate the matter because they don't have a single associated type. During type inference, it is optimistically checked if the variable has a list constraint, and if yes, that constraint is used. Otherwise, the partial list type from the know operands is returned, and the type variable is constrained with an empty list type.
 
-#typings(
-  "Operator typing rules 2.",
+#typings("Operator typing rules 2.", (
   (
-    (
-      derive("S-List-Concat-Hom", ($Γ tack a: "[τ]"$, $Γ tack b: "[τ]"$), $Γ tack a "++" b: "[τ]"$),
-      derive(
-        "S-List-Concat-Multi",
-        ($Γ tack a: [arrow(τ_1)]$, $Γ tack b: [arrow(τ_2)]$),
-        $Γ tack a "++" b: [arrow(τ_1)arrow(τ_2)]$,
-      ),
+    derive(
+      "S-List-Concat-Hom",
+      ($Γ tack a: "[τ]"$, $Γ tack b: "[τ]"$),
+      $Γ tack a "++" b: "[τ]"$,
     ),
-    (
-      derive(
-        "T-Rec-Update",
-        ($Γ tack a: { l_i: τ_i }$, $Γ tack b: { l_j: τ_j }$),
-        $Γ tack a "//" b: a backslash b union b$,
-      ),
+    derive(
+      "S-List-Concat-Multi",
+      ($Γ tack a: [arrow(τ_1)]$, $Γ tack b: [arrow(τ_2)]$),
+      $Γ tack a "++" b: [arrow(τ_1)arrow(τ_2)]$,
     ),
   ),
-)
+  (
+    derive(
+      "T-Rec-Update",
+      ($Γ tack a: { l_i: τ_i }$, $Γ tack b: { l_j: τ_j }$),
+      $Γ tack a "//" b: a backslash b union b$,
+    ),
+  ),
+))
 
 
 === Let-Bindings
 Let-bindings in the Nix language supersede let-bindings in MLsub because Nix allows multiple variable bindings as part of one let binding instead of only one. Normally, one could construct an isomorphism between the two let-bindings by breaking apart an n-multi-let and creating a chain of n let-bindings to introduce all bindings. This, however, is inapplicable in practice because the name bindings in a multi-let can refer to each other. These references can come in arbitrary order, and form cycles similar to the ones records form. To solve this, every new identifier of the let-binding has to be added to the context up-front so that it can be referred to during typing.
 
-#figure(
-  caption: "Let typing rule.",
-  derive(
-    "T-Multi-Let",
-    ($Γ overline([x_i: τ_i tack t_i : τ_i]^i)$, $Γ overline([x_i:∀ arrow(α). τ_i]^i) tack t: τ$),
-    $Γ tack "let" x_0 = t_1; ... ; x_n = t_n "in" t: τ$,
+#figure(caption: "Let typing rule.", derive(
+  "T-Multi-Let",
+  (
+    $Γ overline([x_i: τ_i tack t_i : τ_i]^i)$,
+    $Γ overline([x_i:∀ arrow(α). τ_i]^i) tack t: τ$,
   ),
-)
+  $Γ tack "let" x_0 = t_1; ... ; x_n = t_n "in" t: τ$,
+))
 
 === Functions
 Primitive function definitions, like the ones in MLSub, only allow single identifiers to be function arguments. Nix extends this by allowing destructuring set patterns as function arguments as well. To add them to the language, a new type, `Pattern,` is added. This type mirrors the record type but adds a boolean flag that expresses whether the pattern allows any non-enumerated record fields, i.e., if the pattern is a wildcard pattern like `{x, y, ...}`. In this pattern, the ellipsis signals that the supplied record can have more than the enumerated fields x and y.
@@ -783,58 +799,57 @@ Due to the new pattern type, constraining has to account for the case that a fun
 === Conditionals
 Conditionals are not part of the core language specification for SimpleSub, as they can easily be added to the language by prefilling the context with `f: bool → α → α → α` and rewriting the if construct as an application to this function @main. It has been shown by Dolan @original that `f: bool → α → α → α` is a subtype of the more natural-looking type $f: "bool" → γ → β → γ union.sq β$ that explicitly allows both branches to have different types by substituting $α = γ union.sq β$. Nix has the same syntax and semantics for if statements, so a similar approach could be used. In practice, it is important to create errors referencing proper code locations so that conditionals have to be handled explicitly, but that is only an implementation decision.
 
-#figure(
-  caption: "Syntax and typing rules for conditionals.",
-  [
-    _Syntax extension (conditionals)_: $t ::= ... | "if" t "then" t "else" t$
-    #derive("T-If", ($Γ tack t_1: "bool"$, $Γ tack t_2: τ$, $Γ tack t_3: τ$), $ "if" t_1 "then" t_2 "else" t_3: τ $)
-  ],
-)
+#figure(caption: "Syntax and typing rules for conditionals.", [
+  _Syntax extension (conditionals)_: $t ::= ... | "if" t "then" t "else" t$
+  #derive(
+    "T-If",
+    ($Γ tack t_1: "bool"$, $Γ tack t_2: τ$, $Γ tack t_3: τ$),
+    $ "if" t_1 "then" t_2 "else" t_3: τ $,
+  )
+])
 
 === Inherit Statements
 The inherit statement is syntactic sugar to reintroduce bindings from the context Γ into a let-binding or record. Inherit statements of the form `inherit (path) x` can be rewritten to an assignment `x = path.x`, where x is an identifier and path is a sequence of field accesses to a deeply nested record. From a typing perspective, rewriting is the proper solution as it does not introduce any new typing rules, but for a language server, that is not quite enough. To create good errors, it is necessary to relate to the source code instead of internal rewrites. That is why inherits must be handled more cautiously, delaying lookup to the latest possible point so that if identifiers do not exist, a respective error referencing the proper location in code can be thrown.
 
-#figure(
-  caption: "Syntax rules for let-bindings.",
-  align(left)[
-    _Syntax Path_: $p ::= x | p.x$
+#figure(caption: "Syntax rules for let-bindings.", align(left)[
+  _Syntax Path_: $p ::= x | p.x$
 
-    _Syntax Inherit_: $s ::= "inherit" x; | "inherit" (p) " " x;$
+  _Syntax Inherit_: $s ::= "inherit" x; | "inherit" (p) " " x;$
 
-    _Syntax overwrite(records)_: $t ::= ... | { " " s_i " " }$
+  _Syntax overwrite(records)_: $t ::= ... | { " " s_i " " }$
 
-    _Let variable assignment_: $a ::= x = t; | s$
+  _Let variable assignment_: $a ::= x = t; | s$
 
-    _Syntax extension(let)_: $t ::= ... | "let" a_i "in" t$
-    #v(8pt)
+  _Syntax extension(let)_: $t ::= ... | "let" a_i "in" t$
+  #v(8pt)
 
-  ],
-)
+])
 
 === With Statements
 Another language extension of Nix is the `with` statement. The with statement brings all fields from a record into scope for the following expression. If the imported record has a proper record type, all its fields can be brought into scope, similar to how a let binding would do. The only distinction is that bindings introduced by a with-statement never shadow variables introduced by any other means, meaning every new name has to be checked if it is already part of the context and only be added if it is not. \
 If the added record is a type variable, the constraint direction reverses, such that the type variable is constrained based on its usage in the following expression. This prohibits the existence of free variables in the sub-expression because every variable will be associated with the new type variable. To account for this in code, a single field `with-statement` is added to the context struct that remembers the last with-statement.
 Because fields from a with-statement never shadow variables introduced by other means, with-statements are not mere syntax sugar and need to be handled by their own typing rule #smallcaps("T-With").
 
-#figure(
-  caption: "Syntax and typing rules for the with statement.",
-  grid(
-    columns: 1,
-    gutter: 1cm,
-    align(left)[
-      #v(12pt)
-      _Syntax set_: $"set"::= {l_i: t} | x$
+#figure(caption: "Syntax and typing rules for the with statement.", grid(
+  columns: 1,
+  gutter: 1cm,
+  align(left)[
+    #v(12pt)
+    _Syntax set_: $"set"::= {l_i: t} | x$
 
-      _Syntax extension(with)_: $t::= ... | "with" "set"; t;$
-    ],
+    _Syntax extension(with)_: $t::= ... | "with" "set"; t;$
+  ],
 
-    derive(
-      "T-With",
-      ($Γ tack t_1 : {arrow(l): arrow(τ)}$, $Γ, l_0 : τ_0, ..., l_n: τ_n tack t_2: τ$, $l_i in.not Γ$),
-      $Γ tack "with" t_1; t_2 : τ$,
+  derive(
+    "T-With",
+    (
+      $Γ tack t_1 : {arrow(l): arrow(τ)}$,
+      $Γ, l_0 : τ_0, ..., l_n: τ_n tack t_2: τ$,
+      $l_i in.not Γ$,
     ),
+    $Γ tack "with" t_1; t_2 : τ$,
   ),
-)
+))
 
 
 === Assert Statements
@@ -846,7 +861,11 @@ Assertions precede expressions and allow for early program exit if some conditio
     _Syntax extension(assert)_: $t::= ... | "assert" t; t;$
   ]
 
-  #derive("T-Assert", ($Γ tack t_1: "As<bool>"$, $Γ tack t_2: τ_2$), $Γ tack "assert" t_1; t_2: τ₂$)
+  #derive(
+    "T-Assert",
+    ($Γ tack t_1: "As<bool>"$, $Γ tack t_2: τ_2$),
+    $Γ tack "assert" t_1; t_2: τ₂$,
+  )
 ]
 
 == Examples
