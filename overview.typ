@@ -188,11 +188,18 @@
         (
           derive("T-Negate", ($Γ tack e: "bool"$,), $Γ tack !e: "bool"$),
           derive("T-Check", ($Γ tack e: {l: τ}$,), $Γ tack e ? l: "bool"$),
-          derive("T-Or", ($Γ tack t_1: {l: τ_1}$, $Γ tack t_2: τ_2$), $Γ tack t_1.l "or" t_2: τ_1 union.sq τ_2$),
-          
+          derive(
+            "T-Or",
+            ($Γ tack t_1: {l: τ_1}$, $Γ tack t_2: τ_2$),
+            $Γ tack t_1.l "or" t_2: τ_1 union.sq τ_2$,
+          ),
         ),
         (
-          derive("T-List-Concat-Hom", ($Γ tack a: "[τ]"$, $Γ tack b: "[τ]"$), $Γ tack a "++" b: "[τ]"$),
+          derive(
+            "T-List-Concat-Hom",
+            ($Γ tack a: "[τ]"$, $Γ tack b: "[τ]"$),
+            $Γ tack a "++" b: "[τ]"$,
+          ),
           derive(
             "T-List-Concat-Multi",
             ($Γ tack a: [arrow(τ_1)]$, $Γ tack b: [arrow(τ_2)]$),
@@ -205,30 +212,42 @@
             ($Γ tack a: { l_i: τ_i }$, $Γ tack b: { l_j: τ_j }$),
             $Γ tack a "//" b: a backslash b union b$,
           ),
-        ),          
-        (
-            derive(
-    "T-Multi-Let",
-    ($Γ overline([x_i: τ_i tack t_i : τ_i]^i)$, $Γ overline([x_i:∀ arrow(α). τ_i]^i) tack t: τ$),
-    $Γ tack "let" x_0 = t_1; ... ; x_n = t_n "in" t: τ$,
-  ),
-
         ),
         (
-    derive("T-If", ($Γ tack t_1: "bool"$, $Γ tack t_2: τ$, $Γ tack t_3: τ$), $ "if" t_1 "then" t_2 "else" t_3: τ $),
-          
+          derive(
+            "T-Multi-Let",
+            (
+              $Γ overline([x_i: τ_i tack t_i : τ_i]^i)$,
+              $Γ overline([x_i:∀ arrow(α). τ_i]^i) tack t: τ$,
+            ),
+            $Γ tack "let" x_0 = t_1; ... ; x_n = t_n "in" t: τ$,
+          ),
         ),
         (
-    derive(
-      "T-With",
-      ($Γ tack t_1 : {arrow(l): arrow(τ)}$, $Γ, l_0 : τ_0, ..., l_n: τ_n tack t_2: τ$, $l_i in.not Γ$),
-      $Γ tack "with" t_1; t_2 : τ$,
-    ),
-          
+          derive(
+            "T-If",
+            ($Γ tack t_1: "bool"$, $Γ tack t_2: τ$, $Γ tack t_3: τ$),
+            $ "if" t_1 "then" t_2 "else" t_3: τ $,
+          ),
         ),
         (
-          derive("T-Assert", ($Γ tack t_1: "As<bool>"$, $Γ tack t_2: τ_2$), $Γ tack "assert" t_1; t_2: τ₂$),
-        )
+          derive(
+            "T-With",
+            (
+              $Γ tack t_1 : {arrow(l): arrow(τ)}$,
+              $Γ, l_0 : τ_0, ..., l_n: τ_n tack t_2: τ$,
+              $l_i in.not Γ$,
+            ),
+            $Γ tack "with" t_1; t_2 : τ$,
+          ),
+        ),
+        (
+          derive(
+            "T-Assert",
+            ($Γ tack t_1: "As<bool>"$, $Γ tack t_2: τ_2$),
+            $Γ tack "assert" t_1; t_2: τ₂$,
+          ),
+        ),
       ),
     ),
   ),
@@ -309,5 +328,4 @@
       ]
     $],
   ),
-  
 )
