@@ -259,6 +259,8 @@ String interpolation is used to insert the evaluated content of any expression i
   [
     ```nix
     {
+      user = "septias";
+      program = "nushell";
       # String interpolation for paths
       path = ./home/${user}/.config/${program}/config.toml;
 
@@ -267,7 +269,8 @@ String interpolation is used to insert the evaluated content of any expression i
 
       # String interpolation for records
       attrset = { ${field} = value;};
-      name = { name = "John"; surname = "Smith"; }.${"name"};
+      field = "name";
+      name = { name = "John"; surname = "Smith"; }.${field + "name"};
     }
     ```
   ],
