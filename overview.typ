@@ -10,57 +10,60 @@
          #type_name("Path") p & ::= "(./|~/|/)([a-z A-Z .]+/?)+" \
        #type_name("Number") n & ::= "([0-9]*\.)?[0-9]+"          \
         #type_name("Label") l & ::= "[a-z A-Z _]*"               \
-    $]
-  ),
-
-  colored_box(title: "Syntax", color: blue, [$
-    t ::=
-    #type_name("Basetype") &| b | s | p | n \
-    #type_name("Record") &| {l_0 : t; ...; l_n : t} | #text(weight: "bold")[rec] {l_0 : t; ...; l_n : t}\
-    #type_name("Array") &| [ space t_0 space t_1 space ... space t_n space] \
-    #type_name("Has-attribute") &| t #text(weight: "bold", " ? ") l \
-    #type_name("Has-attribute-or") &| t.l #text(weight: "bold")[or] t \
-    #type_name("Record-Concat") &| t "∕∕" t \
-    #type_name("Array-Concat") &| t "⧺" t \
-    #type_name("Function") &| #text(fill: red, "pat"): t \
-    &| #text(weight: "bold")[let] #text(fill: green)[a]_i #text(weight: "bold")[in] t \
-    &| #text(weight: "bold")[if] t #text(weight: "bold")[then] t #text(weight: "bold")[else] t \
-    &| #text(weight: "bold")[with] t; t \
-    &| #text(weight: "bold")[assert] t; t
-  $]),
+    $]),
 
   colored_box(
-    title: "Syntax: Pattern",
-    color: blue, [$
-     "e" & ::= l | l space ? space t \
+    title: "Syntax",
+    color: blue,
+    [
+      $
+        t ::=
+        #type_name("Basetype") &| b | s | p | n \
+        #type_name("Record") &| {l_0 : t; ...; l_n : t} | #text(weight: "bold")[rec] {l_0 : t; ...; l_n : t}\
+        #type_name("Array") &| [ space t_0 space t_1 space ... space t_n space] \
+        #type_name("Has-attribute") &| t #text(weight: "bold", " ? ") l \
+        #type_name("Has-attribute-or") &| t.l #text(weight: "bold")[or] t \
+        #type_name("Record-Concat") &| t "∕∕" t \
+        #type_name("Array-Concat") &| t "⧺" t \
+        #type_name("Function") &| #text(fill: red, "pat"): t \
+        &| #text(weight: "bold")[let] #text(fill: green)[a] _i #text(weight: "bold")[in] t \
+        &| #text(weight: "bold")[if] t #text(weight: "bold")[then] t #text(weight: "bold")[else] t \
+        &| #text(weight: "bold")[with] t; t \
+        &| #text(weight: "bold")[assert] t; t
+      $
+    ],
+  ),
+
+  colored_box(title: "Syntax: Pattern", color: blue, [$
+      "e" & ::= l | l space ? space t \
       #text(fill: red, "pat") & ::= { space "e"_0, dots, "e"_n space } \
       & | { space "e"_0 , dots, "e"_n, space #text(weight: "bold")[…] space} \
       & | l \
-    $],
-  ),
+    $]),
 
   colored_box(title: "Syntax: Inner Let", color: blue, [$
-      p & ::= l | p.l                             \
-      s & ::= "inherit" l_0 " … " l_n; " | "  "inherit" (p) " " l_0 " … " l_n; \
-      #text(fill: green)[a] & ::= x = t; " | " s                          \
-    $]
-  ),
+      p & ::= l | p.l \
+      s & ::= "inherit" l_0 " … " l_n; " | " "inherit" (p) " " l_0 " … " l_n; \
+      #text(fill: green)[a] & ::= l = t; " | " s \
+    $]),
   colored_box(title: "Syntax: Inner Record", color: blue, [$
-      p & ::= l | p.l                             \
-      s & ::= "inherit" l_0 " … " l_n; " | "  "inherit" (p) " " l_0 " … " l_n; \
-      #text(fill: blue)[b] & ::= x = t; " | " s                          \
-    $]
-  ),
+      p & ::= l | p.l \
+      s & ::= "inherit" l_0 " … " l_n; " | " "inherit" (p) " " l_0 " … " l_n; \
+      #text(fill: blue)[b] & ::= x = t; " | " s \
+    $]),
   // colored_box(title: "Wellformedness", color: red_700, []),
   colored_box(
     title: "Types",
-    color: green, [$
-      tau ::= &tau -> tau | alpha | top | bot | tau union.sq tau | tau inter.sq tau | mu alpha tau \
-      &| "bool" | "string" | "path" | "num" \
-      #type_name("Record")    &| {l_0 : tau" ... "l_n: tau} |  ⟨l_0 : tau " ... " l_n: tau⟩ \
-      #type_name("Lists")     &| [" "tau" "] | [" "τ_1" "…" "τ_n" "] \
-      #type_name("Patterns")  &| ({l_0: tau; ...; l_n: tau }, "bool")
-    $],
+    color: green,
+    [
+      $
+        tau ::= &tau -> tau | alpha | top | bot | tau union.sq tau | tau inter.sq tau | mu alpha tau \
+        &| "bool" | "string" | "path" | "num" \
+        #type_name("Record") &| {l_0 : tau" ... "l_n: tau} | ⟨l_0 : tau " ... " l_n: tau⟩ \
+        #type_name("Lists") &| [" "tau" "] | [" "τ_1" "…" "τ_n" "] \
+        #type_name("Patterns") &| ({l_0: tau; ...; l_n: tau }, "bool")
+      $
+    ],
   ),
   colored_box(title: "Typing Rules", color: purple, typings([], (
     (
@@ -206,23 +209,24 @@
 
   colored_box(
     title: "Lists",
-    color: red, [$
-      #align(center)[
-        #pad_stack((
-          derive("S-Lst", ($ Γ tack τ_1 <= τ_2 $,), $Γ tack [τ_1] <= [τ_2]$),
-          derive(
-            "T-Lst-Hom",
-            ($Γ tack t_0: τ$, "...", $Γ tack t_n: τ$),
-            $Γ tack [ " " t_0 " " t_1 " " ... " " t_n " "]: [ τ]$,
-          ),
-          derive(
-            "T-Lst-Agg",
-            ($Γ tack t_0: τ_0$, "...", $Γ tack t_n: τ_n$),
-            $Γ tack [space t_0 space t_1 space ... " " t_n] : [ τ_0 space τ_1 space ... space τ_n]$,
-          ),
-        ))
-      ]
-    $],
+    color: red,
+    [$
+        #align(center)[
+          #pad_stack((
+            derive("S-Lst", ($ Γ tack τ_1 <= τ_2 $,), $Γ tack [τ_1] <= [τ_2]$),
+            derive(
+              "T-Lst-Hom",
+              ($Γ tack t_0: τ$, "...", $Γ tack t_n: τ$),
+              $Γ tack [ " " t_0 " " t_1 " " ... " " t_n " "]: [ τ]$,
+            ),
+            derive(
+              "T-Lst-Agg",
+              ($Γ tack t_0: τ_0$, "...", $Γ tack t_n: τ_n$),
+              $Γ tack [space t_0 space t_1 space ... " " t_n] : [ τ_0 space τ_1 space ... space τ_n]$,
+            ),
+          ))
+        ]
+      $],
   ),
 )
 
@@ -234,12 +238,12 @@ Firstly we have have the `//` operator which implements `open record extension`.
 
 
 == Context strings
-Context string allow for string based lookup of values. 
+Context string allow for string based lookup of values.
 
 
 = Constructs
 == With statements
-With statements in nix are very tricky. They basically allow to introduc all bindings of a record into 
+With statements in nix are very tricky. They basically allow to introduc all bindings of a record into
 
 
 == Inherit statements
