@@ -1,115 +1,66 @@
-// styling
-#set heading(numbering: none)
-#show heading.where(level: 1): set text(font: "FreeSans", fill: luma(20))
-#show heading.where(level: 2): set text(
-  font: "FreeSans",
-  fill: luma(20),
-  size: 12pt,
-)
-#show math.equation: set text(size: 14pt)
-
-// colors
-#let red_700 = rgb(185, 28, 28)
-
-
-// functions
-#let type_name(name) = text(
-  font: ("FreeSans",),
-  size: 11pt,
-  fill: rgb(10, 10, 10),
-  weight: "semibold",
-  name,
-)
-#let colored_box(title: "", color: blue, content) = {
-  block(breakable: false, {
-    stack(
-      dir: ttb,
-      spacing: 0.5em,
-      align(left, {
-        show heading: set text(fill: color)
-        heading(title)
-      }),
-      rect(stroke: 2pt + color, radius: 4pt, width: 100%, inset: 8pt, content),
-    )
-  })
-}
-#let derive(name, prem, conclusion) = [
-  #table(
-    stroke: none,
-    inset: (x: 0pt, y: 5pt),
-    align: center,
-    table.cell(align: start)[#smallcaps(name)],
-    table.cell(inset: (y: 5pt), [#prem.join("     ")]),
-    table.hline(),
-    table.cell(inset: (y: 10pt), [#conclusion]),
-  )
-]
-
-#let pad_stack(ct) = stack(dir: ltr, spacing: 3em, ..ct)
-
-#let to_stack(item) = pad_stack(item)
-
-#let typings(caption, items) = figure(align(center, grid(
-  align: center,
-  ..items.map(pad_stack)
-)))
+#import "functions.typ": *
 
 
 #stack(
   dir: ttb,
   spacing: 1em,
-  colored_box(title: "Syntax: Basetypes", color: blue, [
-    $
+  colored_box(title: "Syntax: Basetypes", color: blue, [$
       #type_name("Boolean") b & ::= "true" | "false"             \
        #type_name("String") s & ::= "[a-z A-Z _]*"               \
          #type_name("Path") p & ::= "(./|~/|/)([a-z A-Z .]+/?)+" \
        #type_name("Number") n & ::= "([0-9]*\.)?[0-9]+"          \
-    $
-  ]),
-  colored_box(title: "Syntax", color: blue, [$
-      t ::= #type_name("Basetype") &| b | s | p | n \
-      #type_name("Record") &| "rec" {l_0 : t; ...; l_n : t} \
-      #type_name("Array") &| [ space t_0 space t_1 space ... space t_n space] \
-      // &| t + t | t - t | t * t | t space \/ space t \
-      // &| (t "&&" t) | (t "||" t) | (t -> t) | !t \
-      // &| t < t | t <= t | t >= t | t > t | t == t | t != t \
-      #type_name("Has-attribute") &| t "? " l \
-      #type_name("Has-attribute-or") &| t.l "or" t \
-      #type_name("Record-concat") &| t "//" t \
-      #type_name("Array-Concat") &| t "++" t \
-      #type_name("Function") &| "pat": t \
-      &| "let" a_i "in" t
-      &| "if" t "then" t "else" t \
-      &| "inherit (t) t;" \
-      &| "with" "set"; t \
-      &| "assert" t; t
-    $]),
-  colored_box(title: "Syntax: Pattern", color: blue, [
-    $
-      "elem" & ::= x | x space ? space t                             \
-       "pat" & ::= { space "elem"_0, dots, "elem"_n space }          \
-             & | { space "elem"_0 , dots, "elem"_n, space ... space} \
-             & | x                                                   \
-    $
-  ]),
-  colored_box(title: "Syntax: Inherit", color: blue, [
-    $
-      p & ::= x | p.x                             \
-      s & ::= "inherit" x; | "inherit" (p) " " x; \
-      a & ::= x = t; | s                          \
-    $
-  ]),
+        #type_name("Label") l & ::= "[a-z A-Z _]*"               \
+    $]
+  ),
 
-  colored_box(title: "Wellformedness", color: red_700, []),
+  colored_box(title: "Syntax", color: blue, [$
+    t ::=
+    #type_name("Basetype") &| b | s | p | n \
+    #type_name("Record") &| {l_0 : t; ...; l_n : t} | #text(weight: "bold")[rec] {l_0 : t; ...; l_n : t}\
+    #type_name("Array") &| [ space t_0 space t_1 space ... space t_n space] \
+    #type_name("Has-attribute") &| t #text(weight: "bold", " ? ") l \
+    #type_name("Has-attribute-or") &| t.l #text(weight: "bold")[or] t \
+    #type_name("Record-Concat") &| t "∕∕" t \
+    #type_name("Array-Concat") &| t "⧺" t \
+    #type_name("Function") &| #text(fill: red, "pat"): t \
+    &| #text(weight: "bold")[let] #text(fill: green)[a]_i #text(weight: "bold")[in] t \
+    &| #text(weight: "bold")[if] t #text(weight: "bold")[then] t #text(weight: "bold")[else] t \
+    &| #text(weight: "bold")[with] t; t \
+    &| #text(weight: "bold")[assert] t; t
+  $]),
+
+  colored_box(
+    title: "Syntax: Pattern",
+    color: blue, [$
+     "e" & ::= l | l space ? space t \
+      #text(fill: red, "pat") & ::= { space "e"_0, dots, "e"_n space } \
+      & | { space "e"_0 , dots, "e"_n, space #text(weight: "bold")[…] space} \
+      & | l \
+    $],
+  ),
+
+  colored_box(title: "Syntax: Inner Let", color: blue, [$
+      p & ::= l | p.l                             \
+      s & ::= "inherit" l_0 " … " l_n; " | "  "inherit" (p) " " l_0 " … " l_n; \
+      #text(fill: green)[a] & ::= x = t; " | " s                          \
+    $]
+  ),
+  colored_box(title: "Syntax: Inner Record", color: blue, [$
+      p & ::= l | p.l                             \
+      s & ::= "inherit" l_0 " … " l_n; " | "  "inherit" (p) " " l_0 " … " l_n; \
+      #text(fill: blue)[b] & ::= x = t; " | " s                          \
+    $]
+  ),
+  // colored_box(title: "Wellformedness", color: red_700, []),
   colored_box(
     title: "Types",
-    color: green,
-    [$
-        tau ::= &tau -> tau | {l_0 : tau; ...;l_n: tau} | alpha | top | bot | tau union.sq tau | tau inter.sq tau | mu alpha tau \
-        &| "bool" | "string" | "path" | "num" \
-        &| [" "tau" "] \
-        &| ({l_0: tau; ...; l_n: tau }, "bool")
-      $],
+    color: green, [$
+      tau ::= &tau -> tau | alpha | top | bot | tau union.sq tau | tau inter.sq tau | mu alpha tau \
+      &| "bool" | "string" | "path" | "num" \
+      #type_name("Record")    &| {l_0 : tau" ... "l_n: tau} |  ⟨l_0 : tau " ... " l_n: tau⟩ \
+      #type_name("Lists")     &| [" "tau" "] | [" "τ_1" "…" "τ_n" "] \
+      #type_name("Patterns")  &| ({l_0: tau; ...; l_n: tau }, "bool")
+    $],
   ),
   colored_box(title: "Typing Rules", color: purple, typings([], (
     (
@@ -135,13 +86,6 @@
       derive("T-Sub", ($Γ tack t: τ_1$, $τ_1 <= τ_2$), $Γ tack t: τ_2$),
     ),
     (
-      derive(
-        "T-Let",
-        ($Γ, x: τ_1 tack t_1 : τ_1$, $Γ, x: ∀ arrow(α). τ_1 tack t_2: τ_2$),
-        $Γ tack "let rec" x = t_1 "in" t_2: τ_2$,
-      ),
-    ),
-    (
       derive("T-Negate", ($Γ tack e: "bool"$,), $Γ tack !e: "bool"$),
       derive("T-Check", ($Γ tack e: {l: τ}$,), $Γ tack e ? l: "bool"$),
       derive(
@@ -164,7 +108,7 @@
     ),
     (
       derive(
-        "T-Rec-Update",
+        "T-Rec-Concat",
         ($Γ tack a: { l_i: τ_i }$, $Γ tack b: { l_j: τ_j }$),
         $Γ tack a "//" b: a backslash b union b$,
       ),
@@ -205,6 +149,7 @@
       ),
     ),
   ))),
+
   colored_box(
     title: "Subtying Rules",
     color: purple,
@@ -258,31 +203,58 @@
     //   $lt.tri ( τ_0 <= τ_1) = τ_0 <= τ_1$,
     // ))
   ),
+
   colored_box(
     title: "Lists",
-    color: red,
-    [$
-        #align(center)[
-          #pad_stack((
-            derive("S-Lst", ($ Γ tack τ_1 <= τ_2 $,), $Γ tack [τ_1] <= [τ_2]$),
-            derive(
-              "T-Lst-Hom",
-              ($Γ tack t_0: τ$, "...", $Γ tack t_n: τ$),
-              $Γ tack [ " " t_0 " " t_1 " " ... " " t_n " "]: [ τ]$,
-            ),
-            derive(
-              "T-Lst-Agg",
-              ($Γ tack t_0: τ_0$, "...", $Γ tack t_n: τ_n$),
-              $Γ tack [space t_0 space t_1 space ... " " t_n] : [ τ_0 space τ_1 space ... space τ_n]$,
-            ),
-          ))
-        ]
-      $],
+    color: red, [$
+      #align(center)[
+        #pad_stack((
+          derive("S-Lst", ($ Γ tack τ_1 <= τ_2 $,), $Γ tack [τ_1] <= [τ_2]$),
+          derive(
+            "T-Lst-Hom",
+            ($Γ tack t_0: τ$, "...", $Γ tack t_n: τ$),
+            $Γ tack [ " " t_0 " " t_1 " " ... " " t_n " "]: [ τ]$,
+          ),
+          derive(
+            "T-Lst-Agg",
+            ($Γ tack t_0: τ_0$, "...", $Γ tack t_n: τ_n$),
+            $Γ tack [space t_0 space t_1 space ... " " t_n] : [ τ_0 space τ_1 space ... space τ_n]$,
+          ),
+        ))
+      ]
+    $],
   ),
 )
 
-
+= Datatypes
 == Records
-Records are defined very simply in this type system. We don't use Wadlers scoped record labels so reordering of fields in not possible.
-The only supported record type is a list of label->type mappings which can be added during subtyping.There are no lacks predicates so
-fields present once will be there forever.
+Records are defined very simpel in this type system. We don't use Wadlers scoped record labels so reordering of fields in not possible.
+The only supported record type is a list of label->type mappings which can be added during subtyping. There are no lacks predicates so fields present once will be there forever when they have not been subtyped. Two problems are present with the current implementation of the typesystem.
+Firstly we have have the `//` operator which implements `open record extension`. Given two recortds `A: { X: string, Y: int }` and `B: { X: int }` the open record concatenation between the two records `(C = A \\ B)` is `C: {X: int, Y: int}`. This together with the generic subtyping rule T-Sub makes the typesystem unsound, because fields can be removed, making the recod B empty (`TSUB: B -> {}`). In this case, the typesystem would predict `A.X` to be of type `string` which is simply wrong after the application.
+
+
+== Context strings
+Context string allow for string based lookup of values. 
+
+
+= Constructs
+== With statements
+With statements in nix are very tricky. They basically allow to introduc all bindings of a record into 
+
+
+== Inherit statements
+In my Bachelor Thesis, I handled inherit statements as actual syntactic rewrites which is still the preferred way to implement the feature. After I have written down the constraing rules, we can if that is still the best way.
+
+
+== Function patterns
+Functions luckily are pure and functional which helps in inferring a proper type immensely.
+The patterns though add back a bit of a hussle.
+Pattern are given als records, showing which exact fields are wanted for this function. The ellipsis(…) then allows for arbitrary extra fields, and the `?` question mark syntax for default values. For constraining, the patterns need to be handled *bidirectional*?. Firstly, all expected record fields need to be present in the function argument, so the flow is function -> argument. Then, the arguments have to be of proper type when a default value is given, this also flows function -> argument.
+The last constraints are given for the extracted arguments in the function.
+
+
+= Laziness and Recursiveness
+Laziness and cursion occur in two lanugage constructs. The first one being recursive records and the second one being recursive let bindings. To evaluate the properly a lazy evaluation scheme is needed. The currently used approach to handle this is as follows:
+When typing a let binding or record, the algorithm adds all name bindings to the context up-front. This way referenced values will not be undefined when looked up, even if their definition was not type checked yet. The typcheck algorithm then starts with the first Label $A$ which references an unchecked expression labeled $B$.
+During typechecking of unchecked expressions (i.e $B$), they can simply be used to create upper and lower bounds (constraints). For empty type variables that is fine to do, but what happens when we actually check an unchecked expression (i.e $B$)? The inherent structure only then unfolds and during a normal typechecking flow, the type variable would get upper and lower bounds. These bounds are missing on the typecheck run of $A$ though.
+The implications of this are not clear to me yet. We have a later run of type simplification.
