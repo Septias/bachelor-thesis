@@ -14,10 +14,14 @@
       dir: ttb,
       spacing: 0.5em,
       align(left, {
-        show heading: set text(fill: color)
-        heading(title)
+        show heading: set text(
+          fill: color,
+          font: "DejaVu Sans",
+          weight: "medium",
+        )
+        heading(title, level: 2)
       }),
-      rect(stroke: 2pt + color, radius: 4pt, width: 100%, inset: 8pt, content),
+      rect(stroke: 1pt + color, radius: 4pt, width: 100%, inset: 8pt, content),
     )
   })
 }
@@ -27,7 +31,12 @@
     stroke: none,
     inset: (x: 0pt, y: 5pt),
     align: center,
-    table.cell(align: start)[#text(fill: if name.starts-with("T") { blue } else if name.starts-with("S") { purple } else { black }, smallcaps(name))],
+    table.cell(align: start)[#text(
+        fill: if name.starts-with("T") { blue } else if name.starts-with("S") {
+          purple
+        } else { black },
+        smallcaps(name),
+      )],
     table.cell(inset: (y: 5pt), [#prem.join("     ")]),
     table.hline(),
     table.cell(inset: (y: 10pt), [#conclusion]),
