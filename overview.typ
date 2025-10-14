@@ -12,10 +12,10 @@ What follows is first the current efforts of a type system and then some implime
   spacing: 1em,
   colored_box(title: "Syntax: Basetypes", color: blue, [$
       #type_name("Boolean") b & ::= "true" | "false"             \
-       #type_name("String") s & ::= "[a-z A-Z _]*"               \
+       #type_name("String") s & ::= "[a-z A-Z _]* Kind of TODO"  \
          #type_name("Path") p & ::= "(./|~/|/)([a-z A-Z .]+/?)+" \
        #type_name("Number") n & ::= "([0-9]*\.)?[0-9]+"          \
-        #type_name("Label") l & ::= "[a-z A-Z _]*"               \
+        #type_name("Label") l & ::= "[A-Za-z_][A-Za-z0-9_'-]*"   \
     $]),
 
   colored_box(
@@ -294,9 +294,11 @@ What follows is first the current efforts of a type system and then some implime
 
 = Actual TODO
 - Add builtins
-- Define Constraining
 - Define Operational Semantics
+- Document that standart operators are missing/ part of the prelude
 
+= Equality
+- Attribute sets and lists are compared recursively, and therefore are fully evaluated.
 
 = Datatypes
 == Records
@@ -328,6 +330,8 @@ Functions luckily are pure and functional which helps in inferring a proper type
 Pattern are given als records, showing which exact fields are wanted for this function. The ellipsis `(…)` then allows for arbitrary extra fields, and the `?` question mark syntax for default values.
 To handel these, all expected record fields need to be present in the function argument so a record constraint with these fields can be added to the argument of the function. If a default value is given for some record fields, this a constraint can be made on the arguments aswell.
 
+== Dunderscore methods
+TODO
 
 = Laziness and Recursiveness
 Laziness and recursion occur in two language constructs. The first one being recursive records and the second one being recursive let bindings. To evaluate the properly a lazy evaluation scheme is needed. The currently used approach to handle this is as follows:
@@ -368,30 +372,28 @@ When implementing this incrementality framework one has to decide where to draw 
 The generalized structure of the three language servers ought to be as follows. A user opens a file and the lsp client sends the text to the language server. The lange server stores this somewhere and adds it to the typing pipeline. The first step of this pipeline is of cause lexing and parsing the file. Nil already provides a parser for lossless syntax trees that are handy for error reporting. The file is then lowered into another HIR which is more or less syntax independent and thus changes less frequently. This is neccessary because otherwise everything would have to be recomputed all the time. After this, the HIR is given to the inference algorithm that tries to infer a type.
 For this an aren is used to store all of the small, allocated code fragments. This is another form of interning, that enables us to only work with small ids.
 
-#page()[
-  = Code Overview
-  *inputs of lsp*:
-  - `File {content: string, }`
+= Code Overview
+*inputs of lsp*:
+- `File {content: string, }`
 
-  *Inputs of infer:*
-  - `AST { With(ExprId, ExprId) }` (lowered ast with expressions from the arena)
+*Inputs of infer:*
+- `AST { With(ExprId, ExprId) }` (lowered ast with expressions from the arena)
 
-  *Tracked structs:*
-  - `Ty { Lambda(Ty), With(Ty, Ty)}` (enum that stores the whole AST)
-  - `Context {bindings: Vec<_>, }`
-  - `TyVar {lower_bounds: Vec<Ty>, upper_bounds: Vec<Ty>, level: int}`
+*Tracked structs:*
+- `Ty { Lambda(Ty), With(Ty, Ty)}` (enum that stores the whole AST)
+- `Context {bindings: Vec<_>, }`
+- `TyVar {lower_bounds: Vec<Ty>, upper_bounds: Vec<Ty>, level: int}`
 
-  *Functions:*
-  - `infer` (main work)
-    - calls itself with subtrees of the AST and new contexts
-    - *Mutates* context
-  - `constrain` (constrains two types to be the same)
-    - calls itself with subtrees of Ty and might cycle
-    - *Mutates* Typvariables → *Changes context*
-  - `coalesce` (reduce types to unions and intersections)
-    - Create new types
-  - `extrude` (fix levels of problematic variables in a typescheme)
-    - only creates new types
-  - `freshen_above` (Add new type variables at level > x)
-    - only creates new types
-]
+*Functions:*
+- `infer` (main work)
+  - calls itself with subtrees of the AST and new contexts
+  - *Mutates* context
+- `constrain` (constrains two types to be the same)
+  - calls itself with subtrees of Ty and might cycle
+  - *Mutates* Typvariables → *Changes context*
+- `coalesce` (reduce types to unions and intersections)
+  - Create new types
+- `extrude` (fix levels of problematic variables in a typescheme)
+  - only creates new types
+- `freshen_above` (Add new type variables at level > x)
+  - only creates new types
