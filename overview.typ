@@ -93,9 +93,28 @@ What follows is first the current efforts of a type system and then some implime
       $
     ],
   ),
-  colored_box(title: "Subtyping rules", color: green, [$
-      {}, (I, l, u) arrow.squiggly {}, I
-    $]),
+  [Do we need an option type because we have functions with default arguments?],
+  colored_box(
+    title: "Constraining rules",
+    color: green,
+    [
+      Constraining takes two types t₁ and t₂ and constraints the first type to be subtype of the other.
+      $
+        (τ_1 → τ_2),&& (τ_3 → τ_4) &arrow.squiggly "constrain"(τ_3, τ_1); "constrain"(τ_2, τ_4) \
+        {τ_i} ,&& {τ_j} &arrow.squiggly ∀i. "constrain"(τ_i, τ_i) "  " A \
+        {τ_i} ,&& ({τ_j}, #text("true", weight: "bold")) &arrow.squiggly ∀i. "constrain"(τ_i, τ_j) \
+        {τ_i} ,&& ({τ_j}, #text("false", weight: "bold")) &arrow.squiggly "TODO" \
+        [τ_1] ,&& [τ_2] &arrow.squiggly "constrain"(τ_1, τ_2) \
+        (("lo", "up"),&& "rhs") : "if #rhs.level()" <= "#lhs.level()" &arrow.squiggly "lo" += "rhs"; "foreach(lo): lo => constrain(lo, rhs)" \
+        ("lhs" ,&& ("lo", "up")) : "if #lhs.level()" <= "#rhs.level()" &arrow.squiggly "lo" += "lhs"; "foreach(up): up => constrain(lhs, up)" \
+        ("lo", "up"),&& "rhs" &arrow.squiggly "constrain(#lhs, extrude(rhs, false, #lhs.level()))" \
+        "lhs",&& ("lo", "up") &arrow.squiggly "constrain(extrude(lhs, true, #rhs.level()), rhs)" \
+      $
+      In this code, \#lhs and \#rhs respectively reference the first and second argument of the constrain function of the current call. They are thought of beeing available in every case distinction.
+      *Conditions*:
+      - A: Both records are sorted lexiographically and thus align their fields. If some field of the right record is not present in the left one, then.
+    ],
+  ),
   colored_box(title: "Typing Rules", color: purple, typings([], (
     (
       derive(
