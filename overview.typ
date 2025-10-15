@@ -1,121 +1,140 @@
 #import "functions.typ": *
+#set heading(numbering: "1.")
+#set page(margin: 2em)
 
-= Current Efforts of Typing the Nix language and Coding an LSP
-In this document I try to lay out the current efforts of creating a type system and its implementation as a language server written in rust. This document should act as an overview such that we (Peter Thiemann, Taro Sekiyama and me) have a common progress report upon which we can act. Most of it is WIP and there are a lot of loose ends and even contradictions. I hope not to confuse you too much with it though.
-
-What follows is first the current efforts of a type system and then some implimentatino notes.
-
-
-= Type system
-#stack(
-  dir: ttb,
-  spacing: 1em,
-  colored_box(title: "Syntax: Basetypes", color: blue, [$
-      #type_name("Boolean") b & ::= "true" | "false"             \
-       #type_name("String") s & ::= "[a-z A-Z _]* Kind of TODO"  \
-         #type_name("Path") p & ::= "(./|~/|/)([a-z A-Z .]+/?)+" \
-       #type_name("Number") n & ::= "([0-9]*\.)?[0-9]+"          \
-        #type_name("Label") l & ::= "[A-Za-z_][A-Za-z0-9_'-]*"   \
-    $]),
-
-  colored_box(
-    title: "Syntax",
-    color: blue,
-    [
-      $
-        t ::=
-        #type_name("Basetype") &| b | s | p | n \
-        #type_name("Record") &| {#text(fill: blue)[b] _i} | #text(weight: "bold")[rec] {#text(fill: blue)[b] _i}\
-        #type_name("Array") &| [ space t_0 space t_1 space ... space t_n space] \
-        #type_name("Has-Attribute") &| t #text(weight: "bold", " ? ") l \
-        #type_name("Has-Attribute-Or") &| t.l #text(weight: "bold")[or] t \
-        #type_name("Record-Concat") &| t "∕∕" t \
-        #type_name("Array-Concat") &| t "⧺" t \
-        #type_name("Lookup") &| t "." l \
-        #type_name("Dynamic-Lookup") &| t "." t \
-        #type_name("Function") &| #text(fill: red, "pat"): t \
-        &| #text(weight: "bold")[let] #text(fill: green)[a] _i #text(weight: "bold")[in] t \
-        &| #text(weight: "bold")[if] t #text(weight: "bold")[then] t #text(weight: "bold")[else] t \
-        &| #text(weight: "bold")[with] t; t \
-        &| #text(weight: "bold")[assert] t; t
-      $
-    ],
-  ),
-  [
-    - Should paths be added as their own syntax category? I feel like that makes sense if you want to create intrinsically scoped syntax but we are very far from that.
-  ],
-  colored_box(
-    title: "Syntax: Inner record",
-    color: blue,
-    [$
-        #text(fill: blue)[b] & ::= l: t; " | " "ir" \
-        "ir" & ::= "inherit" l_0 " … " l_n; " | " "inherit" (p) " " l_0 " … " l_n; \
-      $],
-  ),
-  colored_box(title: "Syntax: Pattern", color: blue, [$
-      #text(fill: red, "pat") & ::= { space e_i space }                        \
-                              & | { space e_i, #text(weight: "bold")[…] space} \
-                              & | l                                            \
-                          "e" & ::= l | l space ? space t                      \
-    $]),
-
-  colored_box(
-    title: "Syntax: Inner let",
-    color: blue,
-    [$
-        #text(fill: green)[a] & ::= l = t; " | " "il" \
-        p & ::= l | p.l \
-        "il" & ::= "inherit" l_0 " … " l_n; " | " "inherit" (p) " " l_0 " … " l_n; \
-      $],
-  ),
-  // colored_box(title: "Wellformedness", color: red_700, []),
-  colored_box(title: "Reduction rules", color: blue, [$
-                Σ, (x: b)a & arrow.long Σ, b[a := x]           \
-               Σ, {l: t}.l & arrow.long Σ, t                   \
-      Σ, "with "t_1"; "t_2 & arrow.long Σ,{..t_1} t_2          \
-                 Σ, a ++ b & arrow.long [a_0 … a_n, b_0 … b_n] \
-               Σ, a \/\/ b & arrow.long [...b, ...a]           \
-    $]),
+= Current Efforts of Typing the Nix Language and Coding an LSP
+In this document I try to lay out the current efforts of creating a type system and its implementation as a language server written in rust. This document should act as an overview such that we (Peter Thiemann, Taro Sekiyama and me) have a common ground to discuss next steps and current efforts. Most of it is WIP and there are lots of loose ends and even contradictions.
 
 
-  colored_box(
-    title: "Types",
-    color: green,
-    [
-      $
-        tau &::= tau -> tau | alpha | top | bot \
-        #type_name("Type connectives") &| tau union.sq tau | tau inter.sq tau \
-        #type_name("Recursion") &| mu alpha space tau \
-        #type_name("Base Types") &| "bool" | "string" | "path" | "num" \
-        #type_name("Records") &| {l_0 : tau" ... "l_n: tau} | ⟨l_0 : tau " ... " l_n: tau⟩ \
-        #type_name("Lists") &| [" "tau" "] | [" "τ_1" "…" "τ_n" "] \
-        #type_name("Patterns") &| ({l_0: tau; ...; l_n: tau }, "bool")
-      $
-    ],
-  ),
-  [Do we need an option type because we have functions with default arguments?],
-  colored_box(
-    title: "Constraining rules",
-    color: green,
-    [
-      Constraining takes two types t₁ and t₂ and constraints the first type to be subtype of the other.
-      $
-        (τ_1 → τ_2),&& (τ_3 → τ_4) &arrow.squiggly "constrain"(τ_3, τ_1); "constrain"(τ_2, τ_4) \
-        {τ_i} ,&& {τ_j} &arrow.squiggly ∀i. "constrain"(τ_i, τ_i) "  " A \
-        {τ_i} ,&& ({τ_j}, #text("true", weight: "bold")) &arrow.squiggly ∀i. "constrain"(τ_i, τ_j) \
-        {τ_i} ,&& ({τ_j}, #text("false", weight: "bold")) &arrow.squiggly "TODO" \
-        [τ_1] ,&& [τ_2] &arrow.squiggly "constrain"(τ_1, τ_2) \
-        (("lo", "up"),&& "rhs") : "if #rhs.level()" <= "#lhs.level()" &arrow.squiggly "lo" += "rhs"; "foreach(lo): lo => constrain(lo, rhs)" \
-        ("lhs" ,&& ("lo", "up")) : "if #lhs.level()" <= "#rhs.level()" &arrow.squiggly "lo" += "lhs"; "foreach(up): up => constrain(lhs, up)" \
-        ("lo", "up"),&& "rhs" &arrow.squiggly "constrain(#lhs, extrude(rhs, false, #lhs.level()))" \
-        "lhs",&& ("lo", "up") &arrow.squiggly "constrain(extrude(lhs, true, #rhs.level()), rhs)" \
-      $
-      In this code, \#lhs and \#rhs respectively reference the first and second argument of the constrain function of the current call. They are thought of beeing available in every case distinction.
-      *Conditions*:
-      - A: Both records are sorted lexiographically and thus align their fields. If some field of the right record is not present in the left one, then.
-    ],
-  ),
-  colored_box(title: "Typing Rules", color: purple, typings([], (
+= Type System
+
+At some points I use _spread syntax_ like `{…rc}` which means a new record is created from the fields of `rc` where `rc` is a record. These new fields never overwrite existing fiels, meaning `{a : int, …{a : string}}` will reduce to `{a: int}`. Similar is possible for arrays, but naturally without deduplication. Example: [a, …[b c a]] => [a, b, c, a]
+
+I also oftentimes abbreviate $l_0 … l_n$ as $l_i$.
+
+#v(.5cm)
+#colored_box(title: "Syntax: Basetypes", color: blue)[
+  $
+                          c & ::= "[^\"$\\] | $(?!{) | \\."    \
+                    "inter" & ::= "${"#text(fill: red, "e")"}" \
+     #type_name("String") s & ::= "\"(c* inter)* c*\""         \
+    #type_name("Boolean") b & ::= "true" | "false"             \
+       #type_name("Path") p & ::= "(./|~/|/)([a-z A-Z .]+/?)+" \
+     #type_name("Number") n & ::= "([0-9]*\.)?[0-9]+"          \
+      #type_name("Label") l & ::= "[A-Za-z_][A-Za-z0-9_'-]*"   \
+  $
+]
+The language consists of the standart base types string, boolena, number and label. Labels are distinct here, because we need a a syntactic class in some places where only labels are allow. An example is a path that is constructed from labels interspersed by dots. i.e `hm.packages.git`
+
+#colored_box(title: "Syntax", color: blue)[
+  $
+    t ::=
+    &| b | s | p | n | l | "null" \
+    #type_name("Record") &| {#text(fill: green)[a] _i} | #text(weight: "bold")[rec] {#text(fill: green)[a] _i}\
+    #type_name("Array") &| [ space t_0 space t_1 space ... space t_n space] \
+    #type_name("Has-Attribute") &| t #text(weight: "bold", " ? ") l \
+    #type_name("Has-Attribute-Or") &| t.l #text(weight: "bold")[or] t \
+    #type_name("Record-Concat") &| t "//" t \
+    #type_name("Array-Concat") &| t "⧺" t \
+    #type_name("Lookup") &| t "." l \
+    #type_name("Dynamic-Lookup") &| t "." t \
+    #type_name("Function") &| #text(fill: red, "pat"): t \
+    &| #text(weight: "bold")[let] #text(fill: green)[a] _i #text(weight: "bold")[in] t \
+    &| #text(weight: "bold")[if] t #text(weight: "bold")[then] t #text(weight: "bold")[else] t \
+    &| #text(weight: "bold")[with] t; t \
+    &| #text(weight: "bold")[assert] t; t
+  $
+]
+
+- *Functions* take one argument which can be a pattern. This pattern has a record-like structure and allows for multiple fields to be present, this way a function taking multiple arguments can be created without resorting to currying. Patterns allow for more control which is discussed shortly.
+
+- Array elements are delimited by spaces, which is uncommon and records can be marked _recursive_ with the `rec` keyword. Both of these datatypes are _immutable_ but there are the concat operations (*Record-Concat* and *Array-Concat*) that can be used to create new, bigger datatypes.
+
+- Lookups can be static (with a given label) or dynamic, with an arbitrary expression t, that has to reduce to a string. This is further discussed in @dynamic_lookup.
+
+#colored_box(title: "Syntax: Record and Let fields", color: blue)[
+  $
+    #text(fill: green)[a] & ::= l = t; " | " "i" \
+    "i" & ::= #text(weight: "bold")[inherit] l_0 " … " l_n; " | " #text(weight: "bold")[inherit] (p) " " l_0 " … " l_n; \
+    p & ::= l | p.l \
+  $
+]
+Both let-statemnts and records allow for _inhert statements_ to be placed between ordinary field declarations. Inherit statements take a known label for a value and adds the label as "label = value;" to the record or let. This feature is only syntactic sugar to make it easier to build records. Let statements can take a root path `(p)` which is prefixed to all following labels. This way a deep record can be refereced from which all labels are taken.
+
+#colored_box(title: "Syntax: Pattern", color: blue)[
+  $
+    #text(fill: red, "pat") & ::= { space e_i space }                        \
+                            & | { space e_i, #text(weight: "bold")[…] space} \
+                            & | l                                            \
+                        "e" & ::= l | l space ? space t                      \
+  $
+]
+Patterns can be open (…) or closed and also give default arguments with the `?` syntax. An example would be `{a, b ? "pratt", …}`
+
+
+#colored_box(title: "Reduction Rules", color: blue)[
+  $
+    (l: b)a & arrow.long b[l := a] &&#rule_name("R-Fun") \
+    ({l}: b){l: a} & arrow.long l, b[l := a] &&#rule_name("R-Fun-Pat") \
+    ({l}: b){l: a, m: b} & arrow.long ¤ &&#rule_name("R-Fun-Err") \
+    ({l, ...}: b){l: a, m: b} & arrow.long l, b[l := a] &&#rule_name("R-Fun-Pat-Open") \
+    ({l" ? "t}: b)({..}\\l) & arrow.long l, b[l := t] &&#rule_name("R-Fun-Pat-Default") \
+    {l: t}.l & arrow.long t &&#rule_name("R-Lookup") \
+    ({..}\\b).b & arrow.long "null" &&#rule_name("R-Lookup-Null") \
+    ({..}\\b).b" or "t & arrow.long b &&#rule_name("R-Lookup-Default") \
+    ({..}\\b)" ? "b & arrow.long "false" &&#rule_name("R-Has-Pos") \
+    {b: t,..}" ? "b & arrow.long "true" &&#rule_name("R-Has-Neg") \
+    ("rec" { l = {l = l};};).l & arrow.long {x = { x = x;}};"   " &&#rule_name("R-Rec") \
+    "let" l = t_1; "in" t_2 & arrow.long t_2[l = t_1] &&#rule_name("R-Let") \
+    "with "t_1"; "t_2 & arrow.long ({..t_1}), t_2 &&#rule_name("R-With") \
+    "if true then "a" else "b & arrow.long a &&#rule_name("R-Cond-True")\
+    "if false then "a" else "b & arrow.long b &&#rule_name("R-Cond-False")\
+    a ⧺ b & arrow.long [a_0 … a_n, b_0 … b_n] &&#rule_name("R-Array-Concat") \
+    a "//" b & arrow.long [...b, ...a] &&#rule_name("R-Record-Concat") \
+  $
+]
+
+
+#colored_box(title: "Types", color: green)[
+  $
+    tau &::= tau -> tau | alpha | top | bot \
+    #type_name("Type Connectives") &| tau union.sq tau | tau inter.sq tau \
+    #type_name("Recursion") &| mu alpha space tau \
+    #type_name("Base Types") &| "bool" | "string" | "path" | "num" \
+    #type_name("Records") &| {l_0 : tau" ... "l_n: tau} | ⟨l_0 : tau " ... " l_n: tau⟩ \
+    #type_name("Lists") &| [" "tau" "] | [" "τ_1" "…" "τ_n" "] \
+    #type_name("Patterns") &| ({l_0: tau; ...; l_n: tau }, "bool")
+  $
+]
+
+- Do we need an option type because we have functions with default arguments?
+- Label type?
+- Kinds (label, pattern, )
+
+#colored_box(title: "Constraining rules", color: green)[
+  Constraining takes two types t₁ and t₂ and constraints the first type to be subtype of the other.
+  #v(1cm)
+  $
+    (τ_1 → τ_2), (τ_3 → τ_4) &arrow.squiggly "constrain"(τ_3, τ_1); "constrain"(τ_2, τ_4) &&#rule_name("C-Fun")\
+    {τ_1}, {τ_2} &arrow.squiggly ∀i ∈ τ_2. "constrain"(τ_(1i), τ_(2i)) "  if A" &&#rule_name("C-Rec")\
+    {τ_1},({τ_2}, #text("true", weight: "bold")) &arrow.squiggly ∀i ∈ τ_2. "constrain"(τ_(1i), τ_(2i))"   if A" &&#rule_name("C-Pat-Open") \
+    {τ_1} , ({τ_2}, #text("false", weight: "bold")) &arrow.squiggly ∀i ∈ τ_2. "constrain"(τ_(1i), τ_(2i)) "  if A ∧ B  "&&#rule_name("C-Pat-Closed")\
+    [τ_1] , [τ_2] &arrow.squiggly "constrain"(τ_1, τ_2) &&#rule_name("C-Array") \
+    ("lo", "up")^n, τ^m "  if" m <= n &arrow.squiggly "lo" ⩲ τ; ∀l ∈ "lo". "constrain"(l, τ) &&#rule_name("C-Var-⋆")\
+    ("lo", "up")^n@τ_1, τ_2"       " &arrow.squiggly "constrain("τ_1", extrude("τ_2", false, n))" &&#rule_name("C-Var-⋆")\
+    τ^n , ("lo", "up")^m "if" n <= m &arrow.squiggly "lo" ⩲ τ; ∀u ∈ "ul". "constrain"(τ, u) &&#rule_name("C-⋆-Var")\
+    τ_1, ("lo", "up")^m@τ_2 &arrow.squiggly "constrain(extrude("τ_1", true, m), "τ_2")" &&#rule_name("C-⋆-Var")\
+  $
+
+
+  #v(1cm)
+  *Conditions*:
+  - A: Fields in $t_2$ must be present in $t_1$
+  - B: $t_1$ must only have the fields in $τ_2$
+]
+
+#colored_box(title: "Typing Rules", color: purple)[
+  #typings([], (
     (
       derive(
         "T-Var",
@@ -201,101 +220,93 @@ What follows is first the current efforts of a type system and then some implime
         $Γ tack "assert" t_1; t_2: τ₂$,
       ),
     ),
-  ))),
+  ))
+]
 
-  colored_box(
-    title: "Subtying Rules",
-    color: purple,
-    typings([], (
-      (
-        derive("S-Refl", (), $τ <= τ$),
-        derive(
-          "S-Trans",
-          ($Σ tack τ_0 <= τ_1$, $Σ tack τ_1 <= τ_2$),
-          $Σ tack τ_0 <= τ_2$,
-        ),
-        derive("S-Weaken", ($H$,), $Σ tack H$),
-        derive("S-Assume", ($Σ,gt.tri H tack H$,), $Σ tack H$),
+#colored_box(title: "Subtying Rules", color: purple)[
+  #typings([], (
+    (
+      derive("S-Refl", (), $τ <= τ$),
+      derive(
+        "S-Trans",
+        ($Σ tack τ_0 <= τ_1$, $Σ tack τ_1 <= τ_2$),
+        $Σ tack τ_0 <= τ_2$,
       ),
-      (
-        derive("S-Hyp", ($H in Σ$,), $Σ tack H$),
-        derive("S-Rec", (), $μ α.τ eq.triple [μ α.τ slash α]τ$),
-        derive(
-          "S-Or",
-          ($∀ i, exists j,Σ tack τ_i <= τ'_j$,),
-          $Σ tack union.sq_i τ_i <= union.sq_j τ'_j$,
-        ),
-        derive(
-          "S-And",
-          ($∀ i, exists j,Σ tack τ_j <= τ'_i$,),
-          $Σ tack inter.sq_j τ_j <= inter.sq_i τ'_i$,
-        ),
+      derive("S-Weaken", ($H$,), $Σ tack H$),
+      derive("S-Assume", ($Σ,gt.tri H tack H$,), $Σ tack H$),
+    ),
+    (
+      derive("S-Hyp", ($H in Σ$,), $Σ tack H$),
+      derive("S-Rec", (), $μ α.τ eq.triple [μ α.τ slash α]τ$),
+      derive(
+        "S-Or",
+        ($∀ i, exists j,Σ tack τ_i <= τ'_j$,),
+        $Σ tack union.sq_i τ_i <= union.sq_j τ'_j$,
       ),
-      (
-        derive(
-          "S-Fun",
-          ($lt.tri Σ tack τ_0 <= τ_1$, $lt.tri Σ tack τ_2 <= τ_3$),
-          $Σ tack τ_1 arrow.long τ_2 <= τ_0 arrow.long τ_3$,
-        ),
-        derive(
-          "S-Rcd",
-          (),
-          ${arrow(t) : arrow(τ)} eq.triple inter.sq_i {l_i : t_i}$,
-        ),
-        derive(
-          "S-Depth",
-          ($lt.tri Σ tack τ_1 <= τ_2$,),
-          $Σ tack {l: τ_1} <= { l: τ_2}$,
-        ),
+      derive(
+        "S-And",
+        ($∀ i, exists j,Σ tack τ_j <= τ'_i$,),
+        $Σ tack inter.sq_j τ_j <= inter.sq_i τ'_i$,
       ),
-    )),
-    // TODO: no two child elements?
-    // pad_stack((
-    //   $lt.tri(H_0, H_1) = lt.tri H_0, lt.tri H_1$,
-    //   $lt.tri(gt.tri H) = H$,
-    //   $lt.tri ( τ_0 <= τ_1) = τ_0 <= τ_1$,
-    // ))
-  ),
+    ),
+    (
+      derive(
+        "S-Fun",
+        ($lt.tri Σ tack τ_0 <= τ_1$, $lt.tri Σ tack τ_2 <= τ_3$),
+        $Σ tack τ_1 arrow.long τ_2 <= τ_0 arrow.long τ_3$,
+      ),
+      derive(
+        "S-Rcd",
+        (),
+        ${arrow(t) : arrow(τ)} eq.triple inter.sq_i {l_i : t_i}$,
+      ),
+      derive(
+        "S-Depth",
+        ($lt.tri Σ tack τ_1 <= τ_2$,),
+        $Σ tack {l: τ_1} <= { l: τ_2}$,
+      ),
+    ),
+  ))
+  // TODO: no two child elements?
+  // #pad_stack((
+  //   $lt.tri(H_0, H_1) = lt.tri H_0, lt.tri H_1$,
+  //   $lt.tri(gt.tri H) = H$,
+  //   $lt.tri ( τ_0 <= τ_1) = τ_0 <= τ_1$,
+  // ))
+]
+#colored_box(title: "Lists", color: red)[
+  $
+    #align(center)[
+      #pad_stack((
+        derive("S-Lst", ($ Γ tack τ_1 <= τ_2 $,), $Γ tack [τ_1] <= [τ_2]$),
+        derive(
+          "T-Lst-Hom",
+          ($Γ tack t_0: τ$, "...", $Γ tack t_n: τ$),
+          $Γ tack [ " " t_0 " " t_1 " " ... " " t_n " "]: [ τ]$,
+        ),
+        derive(
+          "T-Lst-Agg",
+          ($Γ tack t_0: τ_0$, "...", $Γ tack t_n: τ_n$),
+          $Γ tack [space t_0 space t_1 space ... " " t_n] : [ τ_0 space τ_1 space ... space τ_n]$,
+        ),
+      ))
+    ]
+  $
+]
 
-  colored_box(
-    title: "Lists",
-    color: red,
-    [$
-        #align(center)[
-          #pad_stack((
-            derive("S-Lst", ($ Γ tack τ_1 <= τ_2 $,), $Γ tack [τ_1] <= [τ_2]$),
-            derive(
-              "T-Lst-Hom",
-              ($Γ tack t_0: τ$, "...", $Γ tack t_n: τ$),
-              $Γ tack [ " " t_0 " " t_1 " " ... " " t_n " "]: [ τ]$,
-            ),
-            derive(
-              "T-Lst-Agg",
-              ($Γ tack t_0: τ_0$, "...", $Γ tack t_n: τ_n$),
-              $Γ tack [space t_0 space t_1 space ... " " t_n] : [ τ_0 space τ_1 space ... space τ_n]$,
-            ),
-          ))
-        ]
-      $],
-  ),
-  colored_box(title: "Standart Library", color: red, [$
-      "import": "path" -> {...}? -> t
-    $]),
-)
+
 = TODO
-- Define Kinds? needed?
-  - Only needed for when you have different type classes (for rows, variants, etc.) I only have one here because there are no row variables
 - Define Wellformedness? needed?
   - Not really, stuck is just a possible state and we have a small step semantics
 - Define Evaluation contexts?
-- Define Values? needed?
-  - Not really needed, since small-step
+- Define Values
 - Add polrized variables?
 
 = Actual TODO
-- Add builtins
 - Define Operational Semantics
-- Document that standart operators are missing/ part of the prelude
+- Document that standart operators are missing / part of the prelude
+- Antroduce arbitrary x of l (ranging over idk.)
+- Define Values
 
 = Equality
 - Attribute sets and lists are compared recursively, and therefore are fully evaluated.
@@ -310,7 +321,7 @@ Firstly we have have the `//` operator which implements _open record extension_.
 Context strings and dyanamic lookup share the same syntax in that you can you some arbitrary term t into braces like this `${t}`. For ordinary strings and paths, the value of t will be coerced into a string and added literally. From a typing perspective this is the easy case because inserted values get a constraint of string and thats it. For dyanmic lookups however...
 
 
-== Dynamic Lookup
+== Dynamic Lookup <dynamic_lookup>
 Context string allow lookups of the form `a.${t}` where t is allowed to be any expression that ultimately reduces to a string. The reduced string is then used to index the record which a is supposed to be. Since a type system only computes a type and not the actal value, the only possible approach to handle first-class-labels is to evaluate nix expressions to some extend. Writing a full evaluator is probably too much, but there could be heuristics for simple evaluation. One approach would be to work backwards from return statements in functions up until it gets to wieldy.
 This would also mean to implement the standart library functions like map, readToString etc. One ray of hope is that these were probably already implemented in Tvix.
 
@@ -397,3 +408,161 @@ For this an aren is used to store all of the small, allocated code fragments. Th
   - only creates new types
 - `freshen_above` (Add new type variables at level > x)
   - only creates new types
+
+#pagebreak()
+= Apendix A
+== List of Builtins
+
+- *abort* `s` : Abort Nix expression evaluation and print the error message `s`.
+
+- *add* `e1 e2` : Return the sum of the numbers `e1` and `e2`.
+
+- *addDrvOutputDependencies* `s` : Copy string `s` while turning constant string context elements into derivation-deep string context.
+
+- *all* `pred list` : Return `true` if `pred` returns `true` for all elements of `list`, else `false`.
+
+- *any* `pred list` : Return `true` if `pred` returns `true` for any element of `list`, else `false`.
+
+- *attrNames* `set` : Return the attribute names of `set`, sorted alphabetically.
+
+- *attrValues* `set` : Return the values of attributes in `set`, ordered by sorted names.
+
+- *baseNameOf* `x` : Return the last component of path or string `x`.
+
+- *bitAnd* `e1 e2` : Bitwise AND of integers `e1` and `e2`.
+
+- *bitOr* `e1 e2` : Bitwise OR of integers `e1` and `e2`.
+
+- *bitXor* `e1 e2` : Bitwise XOR of integers `e1` and `e2`.
+
+- *break* `v` : In debug mode, pause evaluation and enter REPL; otherwise return `v`.
+
+- *builtins* : A set containing all built-in functions and values.
+
+- *catAttrs* `attr list` : Collect the attribute `attr` from each set in `list`, ignoring sets without it.
+
+- *ceil* `double` : Round `double` up to the nearest integer.
+
+- *compareVersions* `s1 s2` : Compare version strings; returns `-1`, `0`, or `1`.
+
+- *concatLists* `lists` : Flatten a list of lists into a single list.
+
+- *concatMap* `f list` : Equivalent to `concatLists (map f list)`.
+
+- *concatStringsSep* `sep list` : Join strings in `list` with separator `sep`.
+
+- *convertHash* `args` : Convert a hash string between formats (base16, sha256, SRI, etc.).
+
+- *currentSystem* : System string like `"x86_64-linux"`.
+
+- *currentTime* : Unix time at moment of evaluation (cached).
+
+- *deepSeq* `e1 e2` : Like `seq`, but fully evaluate nested structures in `e1` first.
+
+- *dirOf* `s` : Directory component of string `s`.
+
+- *div* `e1 e2` : Integer division.
+
+- *elem* `x xs` : `true` if `x` is in list `xs`.
+
+- *elemAt* `xs n` : Return the `n`-th element of `xs`.
+
+- *false* : Boolean literal `false`.
+
+- *fetchClosure* `args` : Fetch a store path closure from a binary cache.
+
+- *fetchGit* `args` : Fetch a Git repo or revision.
+
+- *fetchTarball* `args` : Download and unpack a tarball.
+
+- *fetchTree* `input` : Fetch a tree or file with metadata.
+
+- *fetchurl* `arg` : Download a URL and return store path.
+
+- *filter* `f list` : Return elements where `f` yields `true`.
+
+- *filterSource* `pred path` : Copy sources filtering by `pred`.
+
+- *findFile* `search lookup` : Search `lookup` in `search` path.
+
+- *floor* `double` : Round `double` down to nearest integer.
+
+- *foldl'* `op nul list` : Left fold over `list` with `op`.
+
+- *fromJSON* `e` : Parse JSON string `e` into Nix value.
+
+- *fromTOML* `e` : Parse TOML string `e` into Nix value.
+
+- *functionArgs* `f` : Return formal argument set of function `f`.
+
+- *genList* `generator length` : Generate list of given `length` using `generator`.
+
+- *genericClosure* `attrset` : Compute transitive closure of a relation.
+
+- *getAttr* `s set` : Return attribute `s` from `set`.
+
+- *getContext* `s` : Return derivation context of string `s`.
+
+- *getEnv* `s` : Return environment variable `s`.
+
+- *getFlake* `args` : Fetch flake reference and outputs.
+
+- *groupBy* `f list` : Group elements by key `f(element)`.
+
+- *hasAttr* `s set` : `true` if `set` has attribute `s`.
+
+- *hasContext* `s` : `true` if string `s` has nonempty context.
+
+- *hashFile* `type p` : Compute hash of file at `p`.
+
+- *hashString* `type s` : Compute hash of string `s`.
+
+- *head* `list` : First element of `list`.
+
+- *import* `path` : Load and evaluate Nix file at `path`.
+
+- *intersectAttrs* `e1 e2` : Attributes in `e2` whose names occur in `e1`.
+
+- *isAttrs* `e` : `true` if `e` is an attribute set.
+
+- *isBool* `e` : `true` if `e` is a boolean.
+
+- *isFloat* `e` : `true` if `e` is a float.
+
+- *isFunction* `e` : `true` if `e` is a function.
+
+- *isInt* `e` : `true` if `e` is an integer.
+
+- *isList* `e` : `true` if `e` is a list.
+
+- *isNull* `e` : `true` if `e` is `null`.
+
+- *isPath* `e` : `true` if `e` is a path.
+
+- *isString* `e` : `true` if `e` is a string.
+
+- *langVersion* : Integer of current Nix language version.
+
+- *length* `e` : Length of list `e`.
+
+- *lessThan* `e1 e2` : `true` if `e1 < e2`.
+
+- *listToAttrs* `e` : Convert list of `{name, value}` to attrset.
+
+- *map* `f list` : Apply `f` to each element of `list`.
+
+- *mapAttrs* `f attrset` : Apply `f` to each attribute in `attrset`.
+
+- *match* `regex str` : If `regex` matches `str`, return capture groups, else `null`.
+
+- *mul* `e1 e2` : Multiply integers `e1 * e2`.
+
+- *nixPath* : List of search path entries for lookups.
+
+- *nixVersion* : String version of Nix.
+
+- *null* : Literal `null`.
+
+- *outputOf* `drv out` : Return output path of derivation.
+
+- *parseDrvName* `s` : Parse a derivation name into components.
