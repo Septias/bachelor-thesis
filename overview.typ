@@ -73,6 +73,7 @@ Patterns can be open (…) or closed and also give default arguments with the `?
 
 
 #colored_box(title: "Reduction Rules", color: blue)[
+  Let $a,b$ and $t$ range over types and $l$ over label.
   $
     (l: b)a & arrow.long b[l := a] &&#rule_name("R-Fun") \
     ({l}: b){l: a} & arrow.long l, b[l := a] &&#rule_name("R-Fun-Pat") \
@@ -85,14 +86,20 @@ Patterns can be open (…) or closed and also give default arguments with the `?
     ({..}\\b)" ? "b & arrow.long "false" &&#rule_name("R-Has-Pos") \
     {b: t,..}" ? "b & arrow.long "true" &&#rule_name("R-Has-Neg") \
     ("rec" { l = {l = l};};).l & arrow.long {x = { x = x;}};"   " &&#rule_name("R-Rec") \
-    "let" l = t_1; "in" t_2 & arrow.long t_2[l = t_1] &&#rule_name("R-Let") \
-    "with "t_1"; "t_2 & arrow.long ({..t_1}), t_2 &&#rule_name("R-With") \
+    "let" l = a; "in" b & arrow.long b[l = a] &&#rule_name("R-Let") \
+    "with "a"; "b & arrow.long ({.}), t_2 &&#rule_name("R-With") \
     "if true then "a" else "b & arrow.long a &&#rule_name("R-Cond-True")\
     "if false then "a" else "b & arrow.long b &&#rule_name("R-Cond-False")\
     a ⧺ b & arrow.long [a_0 … a_n, b_0 … b_n] &&#rule_name("R-Array-Concat") \
     a "//" b & arrow.long [...b, ...a] &&#rule_name("R-Record-Concat") \
   $
 ]
+#colored_box(title: "Values", color: blue)[$
+    p: b \
+    x \
+    {..} \
+    "rec" {} \
+  $]
 
 
 #colored_box(title: "Types", color: green)[
@@ -112,7 +119,7 @@ Patterns can be open (…) or closed and also give default arguments with the `?
 - Kinds (label, pattern, )
 
 #colored_box(title: "Constraining rules", color: green)[
-  Constraining takes two types t₁ and t₂ and constraints the first type to be subtype of the other.
+  Constraining takes two types τ₁ and τ₂ and constraints the first type to be subtype of the other.
   #v(1cm)
   $
     (τ_1 → τ_2), (τ_3 → τ_4) &arrow.squiggly "constrain"(τ_3, τ_1); "constrain"(τ_2, τ_4) &&#rule_name("C-Fun")\
@@ -296,17 +303,12 @@ Patterns can be open (…) or closed and also give default arguments with the `?
 
 
 = TODO
-- Define Wellformedness? needed?
-  - Not really, stuck is just a possible state and we have a small step semantics
+- *Define Values*
+- Define Wellformedness?
 - Define Evaluation contexts?
-- Define Values
-- Add polrized variables?
-
-= Actual TODO
-- Define Operational Semantics
+- Add polarized variables?
 - Document that standart operators are missing / part of the prelude
 - Antroduce arbitrary x of l (ranging over idk.)
-- Define Values
 
 = Equality
 - Attribute sets and lists are compared recursively, and therefore are fully evaluated.
