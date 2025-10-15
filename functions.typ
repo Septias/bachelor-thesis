@@ -2,9 +2,9 @@
 
 #let type_name(name) = text(
   font: ("FreeSans",),
-  size: 11pt,
+  size: 9pt,
   fill: rgb(10, 10, 10),
-  weight: "semibold",
+  weight: "medium",
   name,
 )
 
@@ -18,6 +18,7 @@
           fill: color,
           font: "DejaVu Sans",
           weight: "medium",
+          size: 10pt,
         )
         heading(title, level: 2)
       }),
@@ -26,17 +27,21 @@
   })
 }
 
+#let rule_name(name) = text(
+  fill: if name.starts-with("T") { yellow } else if name.starts-with("S") {
+    purple
+  } else if name.starts-with("C") { orange } else if name.starts-with("R") {
+    blue
+  } else { black },
+  smallcaps(name),
+)
+
 #let derive(name, prem, conclusion) = [
   #table(
     stroke: none,
     inset: (x: 0pt, y: 5pt),
     align: center,
-    table.cell(align: start)[#text(
-        fill: if name.starts-with("T") { blue } else if name.starts-with("S") {
-          purple
-        } else { black },
-        smallcaps(name),
-      )],
+    table.cell(align: start, rule_name(name)),
     table.cell(inset: (y: 5pt), [#prem.join("     ")]),
     table.hline(),
     table.cell(inset: (y: 10pt), [#conclusion]),
