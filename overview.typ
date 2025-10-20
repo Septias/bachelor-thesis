@@ -6,7 +6,7 @@
 In this document I try to lay out the current efforts of creating a type system and its implementation as a language server written in rust. This document should act as an overview such that we (Peter Thiemann, Taro Sekiyama and me) have a common ground to discuss next steps and current efforts. Most of it is WIP and there are lots of loose ends and even contradictions.
 
 
-= Type System
+= Type System <ts>
 
 At some points I use _spread syntax_ like `{…rc}` which means a new record is created from the fields of `rc` where `rc` is a record. These new fields never overwrite existing fiels, meaning `{a : int, …{a : string}}` will reduce to `{a: int}`. Similar is possible for arrays, but naturally without deduplication. Example: [a, …[b c a]] => [a, b, c, a]
 
@@ -14,17 +14,18 @@ I also oftentimes abbreviate $l_0 … l_n$ as $l_i$.
 
 #v(.5cm)
 #colored_box(title: "Syntax: Basetypes", color: blue)[
+  Definition of some base types using regular expressions.
   $
                           c & ::= "[^\"$\\] | $(?!{) | \\."    \
-                    "inter" & ::= "${"#text(fill: red, "e")"}" \
-     #type_name("String") s & ::= "\"(c* inter)* c*\""         \
+                    "inter" & ::= "${"\^} *"}"                 \
+     #type_name("String") s & ::= "\"(c"*" inter)"*" c"*"\""   \
     #type_name("Boolean") b & ::= "true" | "false"             \
        #type_name("Path") p & ::= "(./|~/|/)([a-z A-Z .]+/?)+" \
      #type_name("Number") n & ::= "([0-9]*\.)?[0-9]+"          \
       #type_name("Label") l & ::= "[A-Za-z_][A-Za-z0-9_'-]*"   \
   $
 ]
-The language consists of the standart base types string, boolena, number and label. Labels are distinct here, because we need a a syntactic class in some places where only labels are allow. An example is a path that is constructed from labels interspersed by dots. i.e `hm.packages.git`
+The language consists of the standart base types string, boolean, number and label. Labels are distinct here, because we need a syntactic class in some places where only labels are allow. An example is a path that is constructed from labels interspersed by dots. i.e `hm.packages.git`
 
 #colored_box(title: "Syntax", color: blue)[
   $
@@ -46,11 +47,11 @@ The language consists of the standart base types string, boolena, number and lab
   $
 ]
 
-- *Functions* take one argument which can be a pattern. This pattern has a record-like structure and allows for multiple fields to be present, this way a function taking multiple arguments can be created without resorting to currying. Patterns allow for more control which is discussed shortly.
-
+- Functions take one argument which can be a pattern. This pattern has a record-like structure and allows for multiple fields to be present, this way a function taking multiple arguments can be created without resorting to currying.
 - Array elements are delimited by spaces, which is uncommon and records can be marked _recursive_ with the `rec` keyword. Both of these datatypes are _immutable_ but there are the concat operations (*Record-Concat* and *Array-Concat*) that can be used to create new, bigger datatypes.
-
-- Lookups can be static (with a given label) or dynamic, with an arbitrary expression t, that has to reduce to a string. This is further discussed in @dynamic_lookup.
+- Record lookups can be static (with a given label) or dynamic, with an arbitrary expression t, that has to reduce to a string. This is further discussed in @dynamic_lookup.
+- Let statements can have multiple bindigs $a_1 = t_1; … ; a_n = t_n$ before the `in` keyword appears.
+- The with expression expects an arbitrary expression that reduces to a record. Every field from the record is then added to the scope of the next exrpession.
 
 #colored_box(title: "Syntax: Record and Let fields", color: blue)[
   $
@@ -59,7 +60,7 @@ The language consists of the standart base types string, boolena, number and lab
     p & ::= l | p.l \
   $
 ]
-Both let-statemnts and records allow for _inhert statements_ to be placed between ordinary field declarations. Inherit statements take a known label for a value and adds the label as "label = value;" to the record or let. This feature is only syntactic sugar to make it easier to build records. Let statements can take a root path `(p)` which is prefixed to all following labels. This way a deep record can be refereced from which all labels are taken.
+Both let-statemnts and records allow for _inhert statements_ to be placed between ordinary field declarations. Inherit statements take a known label for a value and _reintroduce_ the label as "label = value;" to the record or let. This feature is only syntactic sugar to make it easier to build records. Let statements can take a root path `(p)` which is prefixed to all following labels. This way a deep record can be refereced from which all labels are taken. For example, the term `inherit (world.objects.players) robert anders;` will add `robert = world.objects.players.robert; anders = world.objects.players.anders;` to the surrounding record or let expression.
 
 #colored_box(title: "Syntax: Pattern", color: blue)[
   $
@@ -69,36 +70,50 @@ Both let-statemnts and records allow for _inhert statements_ to be placed betwee
                         "e" & ::= l | l space ? space t                      \
   $
 ]
-Patterns can be open (…) or closed and also give default arguments with the `?` syntax. An example would be `{a, b ? "pratt", …}`
+Patterns can be open (…) or closed and also give default arguments with the `?` syntax. An example would be `{a, b ? "pratt", …}` which is an open pattern with a default value of "pratt" for the label b.
 
 
 #colored_box(title: "Reduction Rules", color: blue)[
-  Let $a,b$ and $t$ range over types and $l$ over label.
+  Let $a,b$ and $t$ range over syntax terms and $l$ over label.
   $
     (l: b)a & arrow.long b[l := a] &&#rule_name("R-Fun") \
-    ({l}: b){l: a} & arrow.long l, b[l := a] &&#rule_name("R-Fun-Pat") \
+    ({l}: b){l: a} & arrow.long b[l := a] &&#rule_name("R-Fun-Pat") \
     ({l}: b){l: a, m: b} & arrow.long ¤ &&#rule_name("R-Fun-Err") \
-    ({l, ...}: b){l: a, m: b} & arrow.long l, b[l := a] &&#rule_name("R-Fun-Pat-Open") \
-    ({l" ? "t}: b)({..}\\l) & arrow.long l, b[l := t] &&#rule_name("R-Fun-Pat-Default") \
+    ({l, ...}: b){l: a, m: b} & arrow.long b[l := a] &&#rule_name("R-Fun-Pat-Open") \
+    ({l" ? "t}: b)({..}\\l) & arrow.long b[l := t] &&#rule_name("R-Fun-Pat-Default") \
     {l: t}.l & arrow.long t &&#rule_name("R-Lookup") \
     ({..}\\b).b & arrow.long "null" &&#rule_name("R-Lookup-Null") \
     ({..}\\b).b" or "t & arrow.long b &&#rule_name("R-Lookup-Default") \
     ({..}\\b)" ? "b & arrow.long "false" &&#rule_name("R-Has-Pos") \
     {b: t,..}" ? "b & arrow.long "true" &&#rule_name("R-Has-Neg") \
-    ("rec" { l = {l = l};};).l & arrow.long {x = { x = x;}};"   " &&#rule_name("R-Rec") \
-    "let" l = a; "in" b & arrow.long b[l = a] &&#rule_name("R-Let") \
-    "with "a"; "b & arrow.long ({.}), t_2 &&#rule_name("R-With") \
-    "if true then "a" else "b & arrow.long a &&#rule_name("R-Cond-True")\
-    "if false then "a" else "b & arrow.long b &&#rule_name("R-Cond-False")\
-    a ⧺ b & arrow.long [a_0 … a_n, b_0 … b_n] &&#rule_name("R-Array-Concat") \
-    a "//" b & arrow.long [...b, ...a] &&#rule_name("R-Record-Concat") \
+    ("rec" { l = {l = l};};).l & arrow.long {l = { l = l;}};"   " &&#rule_name("R-Rec") \
+    "let" l_i = a_i; "in" b & arrow.long b[l_i = a_i] &&#rule_name("R-Let") \
+    "with" {l_i = a_i}; b & arrow.long b[l_i "/=" a_i ] &&#rule_name("R-With") \
+    "if true then "a" else "b & arrow.long a &&#rule_name("R-Cond-True") \
+    "if false then "a" else "b & arrow.long b &&#rule_name("R-Cond-False") \
+    a ⧺ b & arrow.long [ …a, …b] &&#rule_name("R-Array-Concat") \
+    a " //" b & arrow.long {…b, …a} &&#rule_name("R-Record-Concat") \
   $
 ]
+
+- R-Fun is the standart function β-reduction where the argument is replaced by the supplied arguments value in the body. I use `l := a` to say that the variable l is assigned value a in the body.
+- What then follows are function application variations for the different patterns that are possible. If a function expects a record with field l and is supplied such a record, it reduces like a normal function (R-Fun-Pat). If there are more arguments than needed, an error is raised (R-Fun-Err) but only if the pattern is not _open_ (R-Fun-Pat-Open). Lastly, it is possible to give default arguments for arguments that do not supply certain fields. I use the syntax `{..} \ l` to create an arbitrary record without the label l.
+- The pattern rules (R-Fun-Pat for example) only reduces for one field which is a problem. This is fixed by applying the the rules for single cases exhaustively until every possible pattern item is handled or (R-Fun-Err) stops reduction. This is still a bit handwavey and needs better formalization, but I hope the idea can be seen.
+
+- Lookup is handled by three rules, (R-Lookup, R-Lookup-Null, R-lookup-Default) which are straight forward. The two rules for the "has"-operator are straigtforward aswell.
+
+- Recursive records can be looked up bot don't change structurally by this operation. The only difference is that the rec keyword is removed. I don't know how to feel about this and whether this "marker" should be kept or whether it is only used initially to check wellformedness of read expressions.
+
+- To reduce with-statements the first term has to reduce to a record and I don't like the formalization of that currently. For the next expression these fields are replaced for free variables. I use the `/=` operator to get this behaviour. See @with for further discussion.
+
+- The concat operations are quite natural given the _spread syntax_ described in @ts.
+
+
 #colored_box(title: "Values", color: blue)[$
     p: b \
     x \
     {..} \
-    "rec" {} \
+    "rec" {..} \
   $]
 
 
@@ -110,125 +125,125 @@ Patterns can be open (…) or closed and also give default arguments with the `?
     #type_name("Base Types") &| "bool" | "string" | "path" | "num" \
     #type_name("Records") &| {l_0 : tau" ... "l_n: tau} | ⟨l_0 : tau " ... " l_n: tau⟩ \
     #type_name("Lists") &| [" "tau" "] | [" "τ_1" "…" "τ_n" "] \
-    #type_name("Patterns") &| ({l_0: tau; ...; l_n: tau }, "bool")
+    #type_name("Patterns") &| ({l_0: tau; ...; l_n: tau }, "bool") \
+    #type_name("Kind") k &:= star, P, L
   $
 ]
 
-- Do we need an option type because we have functions with default arguments?
-- Label type?
-- Kinds (label, pattern, )
-
-#colored_box(title: "Constraining rules", color: green)[
-  Constraining takes two types τ₁ and τ₂ and constraints the first type to be subtype of the other.
-  #v(1cm)
-  $
-    (τ_1 → τ_2), (τ_3 → τ_4) &arrow.squiggly "constrain"(τ_3, τ_1); "constrain"(τ_2, τ_4) &&#rule_name("C-Fun")\
-    {τ_1}, {τ_2} &arrow.squiggly ∀i ∈ τ_2. "constrain"(τ_(1i), τ_(2i)) "  if A" &&#rule_name("C-Rec")\
-    {τ_1},({τ_2}, #text("true", weight: "bold")) &arrow.squiggly ∀i ∈ τ_2. "constrain"(τ_(1i), τ_(2i))"   if A" &&#rule_name("C-Pat-Open") \
-    {τ_1} , ({τ_2}, #text("false", weight: "bold")) &arrow.squiggly ∀i ∈ τ_2. "constrain"(τ_(1i), τ_(2i)) "  if A ∧ B  "&&#rule_name("C-Pat-Closed")\
-    [τ_1] , [τ_2] &arrow.squiggly "constrain"(τ_1, τ_2) &&#rule_name("C-Array") \
-    ("lo", "up")^n, τ^m "  if" m <= n &arrow.squiggly "lo" ⩲ τ; ∀l ∈ "lo". "constrain"(l, τ) &&#rule_name("C-Var-⋆")\
-    ("lo", "up")^n@τ_1, τ_2"       " &arrow.squiggly "constrain("τ_1", extrude("τ_2", false, n))" &&#rule_name("C-Var-⋆")\
-    τ^n , ("lo", "up")^m "if" n <= m &arrow.squiggly "lo" ⩲ τ; ∀u ∈ "ul". "constrain"(τ, u) &&#rule_name("C-⋆-Var")\
-    τ_1, ("lo", "up")^m@τ_2 &arrow.squiggly "constrain(extrude("τ_1", true, m), "τ_2")" &&#rule_name("C-⋆-Var")\
-  $
-
-
-  #v(1cm)
-  *Conditions*:
-  - A: Fields in $t_2$ must be present in $t_1$
-  - B: $t_1$ must only have the fields in $τ_2$
-]
+- TODO: Do we need an option type because we have functions with default arguments?
+- TODO: Kinds (label, pattern, )
+- TODO: Is recursion handled correctly
 
 #colored_box(title: "Typing Rules", color: purple)[
-  #typings([], (
+  #typings(
+    [],
     (
-      derive(
-        "T-Var",
-        ($x: ∀ arrow(α). space τ in Γ$,),
-        $Γ tack x: τ[arrow(α) \\ arrow(τ)]$,
-      ),
-      derive("T-Abs", ($Γ, x: τ_1 tack t: τ_2$,), $Γ tack λ x. t: τ_1 → τ_2$),
-      derive(
-        "T-App",
-        ($Γ tack t_1: τ_1 → τ_2$, $Γ tack t_2: τ_1$),
-        $t_1 t_2: τ_2$,
-      ),
-    ),
-    (
-      derive(
-        "T-Rcd",
-        ($Γ tack t_0: τ_0$, "...", $Γ tack t_n: τ_n$),
-        $Γ tack {arrow(l): arrow(t)}: {arrow(l): arrow(τ)}$,
-      ),
-      derive("T-Proj", ($ Γ tack t: {l: τ} $,), $Γ tack t.l: τ$),
-      derive("T-Sub", ($Γ tack t: τ_1$, $τ_1 <= τ_2$), $Γ tack t: τ_2$),
-    ),
-    (
-      derive("T-Negate", ($Γ tack e: "bool"$,), $Γ tack !e: "bool"$),
-      derive("T-Check", ($Γ tack e: {l: τ}$,), $Γ tack e ? l: "bool"$),
-      derive(
-        "T-Or",
-        ($Γ tack t_1: {l: τ_1}$, $Γ tack t_2: τ_2$),
-        $Γ tack t_1.l "or" t_2: τ_1 union.sq τ_2$,
-      ),
-    ),
-    (
-      derive(
-        "T-List-Concat-Hom",
-        ($Γ tack a: "[τ]"$, $Γ tack b: "[τ]"$),
-        $Γ tack a "++" b: "[τ]"$,
-      ),
-      derive(
-        "T-List-Concat-Multi",
-        ($Γ tack a: [arrow(τ_1)]$, $Γ tack b: [arrow(τ_2)]$),
-        $Γ tack a "++" b: [arrow(τ_1)arrow(τ_2)]$,
-      ),
-    ),
-    (
-      derive(
-        "T-Rec-Concat",
-        ($Γ tack a: { l_i: τ_i }$, $Γ tack b: { l_j: τ_j }$),
-        $Γ tack a "//" b: a backslash b union b$,
-      ),
-    ),
-    (
-      derive(
-        "T-Multi-Let",
-        (
-          $Γ overline([x_i: τ_i tack t_i : τ_i]^i)$,
-          $Γ overline([x_i:∀ arrow(α). τ_i]^i) tack t: τ$,
+      (
+        derive(
+          "T-Var",
+          ($x: ∀ arrow(α). space τ in Γ$,),
+          $Γ tack x: τ[arrow(α) \\ arrow(τ)]$,
         ),
-        $Γ tack "let" x_0 = t_1; ... ; x_n = t_n "in" t: τ$,
-      ),
-    ),
-    (
-      derive(
-        "T-If",
-        ($Γ tack t_1: "bool"$, $Γ tack t_2: τ$, $Γ tack t_3: τ$),
-        $ "if" t_1 "then" t_2 "else" t_3: τ $,
-      ),
-    ),
-    (
-      derive(
-        "T-With",
-        (
-          $Γ tack t_1 : {arrow(l): arrow(τ)}$,
-          $Γ, l_0 : τ_0, ..., l_n: τ_n tack t_2: τ$,
-          $l_i in.not Γ$,
+        derive("T-Abs", ($Γ, x: τ_1 tack t: τ_2$,), $Γ tack x: t: τ_1 → τ_2$),
+        derive(
+          "T-App",
+          ($Γ tack t_1: τ_1 → τ_2$, $Γ tack t_2: τ_1$),
+          $t_1 t_2: τ_2$,
         ),
-        $Γ tack "with" t_1; t_2 : τ$,
+      ),
+      (
+        derive(
+          "T-Rcd",
+          ($Γ tack t_0: τ_0$, "...", $Γ tack t_n: τ_n$),
+          $Γ tack {arrow(l): arrow(t)}: {arrow(l): arrow(τ)}$,
+        ),
+        derive("T-Proj", ($ Γ tack t: {l: τ} $,), $Γ tack t.l: τ$),
+        derive("T-Sub", ($Γ tack t: τ_1$, $τ_1 <= τ_2$), $Γ tack t: τ_2$),
+      ),
+      (
+        derive("T-Negate", ($Γ tack e: "bool"$,), $Γ tack !e: "bool"$),
+        derive("T-Check", ($Γ tack e: {l: τ}$,), $Γ tack e ? l: "bool"$),
+        derive(
+          "T-Or",
+          ($Γ tack t_1: {l: τ_1}$, $Γ tack t_2: τ_2$),
+          $Γ tack t_1.l "or" t_2: τ_1 union.sq τ_2$,
+        ),
+      ),
+      (
+        derive(
+          "T-Lst-Hom",
+          ($Γ tack t_0: τ$, "...", $Γ tack t_n: τ$),
+          $Γ tack [ " " t_0 " " t_1 " " ... " " t_n " "]: [ τ]$,
+        ),
+        derive(
+          "T-Lst-Agg",
+          ($Γ tack t_0: τ_0$, "...", $Γ tack t_n: τ_n$),
+          $Γ tack [space t_0 space t_1 space ... " " t_n] : [ τ_0 space τ_1 space ... space τ_n]$,
+        ),
+      ),
+      (
+        derive(
+          "T-List-Concat-Hom",
+          ($Γ tack a: "[τ]"$, $Γ tack b: "[τ]"$),
+          $Γ tack a "⧺" b: "[τ]"$,
+        ),
+        derive(
+          "T-List-Concat-Multi",
+          ($Γ tack a: [arrow(τ_1)]$, $Γ tack b: [arrow(τ_2)]$),
+          $Γ tack a "⧺" b: [arrow(τ_1)arrow(τ_2)]$,
+        ),
+      ),
+      (
+        derive(
+          "T-Rec-Concat",
+          ($Γ tack a: { l_i: τ_i }$, $Γ tack b: { l_j: τ_j }$),
+          $Γ tack a "//" b: a backslash b union b$,
+        ),
+      ),
+      (
+        derive(
+          "T-Multi-Let",
+          (
+            $Γ overline([x_i: τ_i tack t_i : τ_i]^i)$,
+            $Γ overline([x_i:∀ arrow(α). τ_i]^i) tack t: τ$,
+          ),
+          $Γ tack "let" x_0 = t_0; ... ; x_n = t_n "in" t: τ$,
+        ),
+      ),
+      (
+        derive(
+          "T-If",
+          ($Γ tack t_1: "bool"$, $Γ tack t_2: τ$, $Γ tack t_3: τ$),
+          $ "if" t_1 "then" t_2 "else" t_3: τ $,
+        ),
+      ),
+      (
+        derive(
+          "T-With",
+          (
+            $Γ tack t_1 : {arrow(l): arrow(τ)}$,
+            $Γ, l_0 : τ_0, ..., l_n: τ_n tack t_2: τ$,
+            $l_i in.not Γ$,
+          ),
+          $Γ tack "with" t_1; t_2 : τ$,
+        ),
+      ),
+      (
+        derive(
+          "T-Assert",
+          ($Γ tack t_1: "As<bool>"$, $Γ tack t_2: τ_2$),
+          $Γ tack "assert" t_1; t_2: τ₂$,
+        ),
       ),
     ),
-    (
-      derive(
-        "T-Assert",
-        ($Γ tack t_1: "As<bool>"$, $Γ tack t_2: τ_2$),
-        $Γ tack "assert" t_1; t_2: τ₂$,
-      ),
-    ),
-  ))
+  )
 ]
+
+- We have a standart typing context Γ, pre-filled with the standart library functions from @prelude and functions to handle the basic logic, arithmetic and \_ operators.
+- TODO: The rule "T-Or" should distinguish between the positive and negative case similar to if, and only return one type instead of a union.
+- TODO: "T-Rec-Concat" doesn't work really because of the generic subtyping rule. Further discussed in @records
+- TODO: T-multi-let can be made simpler because we can always rewrite multi-let to let-chains. Recursion has to be accounted for, that is still an open question.
+- TODO: T-With $l_i in.not Γ$ is too resstrictive because they can be there, they will just not be used.
 
 #colored_box(title: "Subtying Rules", color: purple)[
   #typings([], (
@@ -273,6 +288,9 @@ Patterns can be open (…) or closed and also give default arguments with the `?
         $Σ tack {l: τ_1} <= { l: τ_2}$,
       ),
     ),
+    (
+      derive("S-Lst", ($ Γ tack τ_1 <= τ_2 $,), $Γ tack [τ_1] <= [τ_2]$),
+    ),
   ))
   // TODO: no two child elements?
   // #pad_stack((
@@ -281,47 +299,50 @@ Patterns can be open (…) or closed and also give default arguments with the `?
   //   $lt.tri ( τ_0 <= τ_1) = τ_0 <= τ_1$,
   // ))
 ]
-#colored_box(title: "Lists", color: red)[
+
+What follows are the constraining rules used in the constrain subroutine of the implementation. This uses the subtyping rules and applies them to types.
+#colored_box(title: "Constraining rules", color: purple)[
+  Constraining takes two types τ₁ and τ₂ and constraints the first type to be subtype of the other.
+  #v(1cm)
   $
-    #align(center)[
-      #pad_stack((
-        derive("S-Lst", ($ Γ tack τ_1 <= τ_2 $,), $Γ tack [τ_1] <= [τ_2]$),
-        derive(
-          "T-Lst-Hom",
-          ($Γ tack t_0: τ$, "...", $Γ tack t_n: τ$),
-          $Γ tack [ " " t_0 " " t_1 " " ... " " t_n " "]: [ τ]$,
-        ),
-        derive(
-          "T-Lst-Agg",
-          ($Γ tack t_0: τ_0$, "...", $Γ tack t_n: τ_n$),
-          $Γ tack [space t_0 space t_1 space ... " " t_n] : [ τ_0 space τ_1 space ... space τ_n]$,
-        ),
-      ))
-    ]
+    (τ_1 → τ_2), (τ_3 → τ_4) &arrow.squiggly "constrain"(τ_3, τ_1); "constrain"(τ_2, τ_4) &&#rule_name("C-Fun")\
+    {τ_1}, {τ_2} &arrow.squiggly ∀i ∈ τ_2. "constrain"(τ_(1i), τ_(2i)) "  if A" &&#rule_name("C-Rec")\
+    {τ_1},({τ_2}, #text("true", weight: "bold")) &arrow.squiggly ∀i ∈ τ_2. "constrain"(τ_(1i), τ_(2i))"   if A" &&#rule_name("C-Pat-Open") \
+    {τ_1} , ({τ_2}, #text("false", weight: "bold")) &arrow.squiggly ∀i ∈ τ_2. "constrain"(τ_(1i), τ_(2i)) "  if A ∧ B  "&&#rule_name("C-Pat-Closed")\
+    [τ_1] , [τ_2] &arrow.squiggly "constrain"(τ_1, τ_2) &&#rule_name("C-Array") \
+    ("lo", "up")^n, τ^m "  if" m <= n &arrow.squiggly "lo" ⩲ τ; ∀l ∈ "lo". "constrain"(l, τ) &&#rule_name("C-Var-⋆")\
+    ("lo", "up")^n@τ_1, τ_2"       " &arrow.squiggly "constrain("τ_1", extrude("τ_2", false, n))" &&#rule_name("C-Var-⋆")\
+    τ^n , ("lo", "up")^m "if" n <= m &arrow.squiggly "lo" ⩲ τ; ∀u ∈ "ul". "constrain"(τ, u) &&#rule_name("C-⋆-Var")\
+    τ_1, ("lo", "up")^m@τ_2 &arrow.squiggly "constrain(extrude("τ_1", true, m), "τ_2")" &&#rule_name("C-⋆-Var")\
   $
+  #v(1cm)
+  *Conditions*:
+  - A: Fields in $τ_2$ must be present in $τ_1$
+  - B: $τ_1$ must only have the fields in $τ_2$
 ]
 
 
+"C-Fun" is the standart function subtyping rule, and "C-Rec" standart record width subtyping. The following two rules handle subtyping of patterns which is needed to coerce function arguments to function patterns.
+
+
+
 = TODO
-- *Define Values*
 - Define Wellformedness?
 - Define Evaluation contexts?
 - Add polarized variables?
-- Document that standart operators are missing / part of the prelude
-- Antroduce arbitrary x of l (ranging over idk.)
+- Explain constrain fuction and move below subtyping
 
 = Equality
 - Attribute sets and lists are compared recursively, and therefore are fully evaluated.
 
 = Datatypes
-== Records
+== Records <records>
 Records are defined very simple in this type system. The only supported record type is a list of label → type mappings which can be added during subtyping. There is no way to reorder them, or remove some. During typing, multiple object constraints are concatenated, so there is a way to add new fields. Two problems are present with the current implementation of the typesystem.
 Firstly we have have the `//` operator which implements _open record extension_. Given two records `A: { X: string, Y: int }` and `B: { X: int }` the open record concatenation between the two records `(C = A \\ B)` is `C: {X: int, Y: int}`. This together with the generic subtyping rule T-Sub makes the typesystem unsound, because fields can be removed, making the recod B empty (`T-SUB: B -> {}`). In this case, the typesystem would predict `A.X` to be of type `string` which is simply wrong after the application.
 
 
 == Context Strings
-Context strings and dyanamic lookup share the same syntax in that you can you some arbitrary term t into braces like this `${t}`. For ordinary strings and paths, the value of t will be coerced into a string and added literally. From a typing perspective this is the easy case because inserted values get a constraint of string and thats it. For dyanmic lookups however...
-
+Context strings and dyanamic lookup share the same syntax in that you can insert some arbitrary term t into braces like this `${t}`. For ordinary strings and paths, the value of t will be coerced into a string and added literally. From a typing perspective this is the easy case because inserted values get a constraint of string and thats it. For dynamic lookup it gets trickier though.
 
 == Dynamic Lookup <dynamic_lookup>
 Context string allow lookups of the form `a.${t}` where t is allowed to be any expression that ultimately reduces to a string. The reduced string is then used to index the record which a is supposed to be. Since a type system only computes a type and not the actal value, the only possible approach to handle first-class-labels is to evaluate nix expressions to some extend. Writing a full evaluator is probably too much, but there could be heuristics for simple evaluation. One approach would be to work backwards from return statements in functions up until it gets to wieldy.
@@ -329,9 +350,9 @@ This would also mean to implement the standart library functions like map, readT
 
 
 = Constructs
-== With Statements
-With statements in nix are very tricky. They basically allow to introduc all bindings of a record into the following expression. For this, the first expression (A) in $"with " A"; "B$ has to reduce to a record. If this does not work, typing should raise an error. For explicit records, the following typing is straigt forward. Just introduce all fields to the scope and continue typchecking $B$. For the case that A is a type variable, it gets tricky again because of the generic subsumption rule. When A is subtyped like follows $A: {X: "int"} arrow A: {}$, then the field X would not be accessible in the function body.
-The second problem is what I call the _attribution problem_. This happens when there is a chain of with statements $"with "A; ("with "B;) t$ and B is a type variable. Now when trying to lookup $x$ in t, it is unclear whether x came from B or A. But only in the case that
+== With Statements <with>
+With statements in nix are very tricky. They basically allow to introduc all bindings of a record into the following expression. For this, the first expression (A) in $"with " A"; "B$ has to reduce to a record. If this does not work, typing should raise an error. For explicit records, the following typing is straigt forward. Just introduce all fields to the scope without shadowing and continue typchecking $B$. For the case that A is a type variable, it gets tricky however because of the generic subsumption rule. When A is subtyped like follows $A: {X: "int"} arrow A: {}$, then the field X would not be accessible in the function body.
+The second problem is what I call the _attribution problem_. This happens when there is a chain of with statements $"with "A; ("with "B;) t$ and A and B are type variables. Now when trying to lookup $x$ in t, it is unclear whether x came from B or A.
 
 
 == Inherit Statements
@@ -339,15 +360,14 @@ In my Bachelors Thesis, I handled inherit statements as syntactic rewrites which
 
 
 == Function Patterns
-Functions luckily are pure and functional which helps in inferring a proper type immensely. The patterns though add back a bit of a hussle.
-Pattern are given als records, showing which exact fields are wanted for this function. The ellipsis `(…)` then allows for arbitrary extra fields, and the `?` question mark syntax for default values.
+Functions luckily are pure and functional which helps in inferring a proper type immensely. Pattern are given as records, showing which exact fields are wanted for this function. The ellipsis `(…)` then allows for arbitrary extra fields, and the `?` question mark syntax for default values.
 To handel these, all expected record fields need to be present in the function argument so a record constraint with these fields can be added to the argument of the function. If a default value is given for some record fields, this a constraint can be made on the arguments aswell.
 
-== Dunderscore methods
-TODO
+== Dunder methods
+There seem to be some special dunder methods for representations which are handled specially by the evaluator. I have not had the chance to look into it further.
 
 = Laziness and Recursiveness
-Laziness and recursion occur in two language constructs. The first one being recursive records and the second one being recursive let bindings. To evaluate the properly a lazy evaluation scheme is needed. The currently used approach to handle this is as follows:
+Laziness and recursion occur in two language constructs. The first one being recursive records and the second one being recursive let bindings. To evaluate them properly, a lazy evaluation scheme is needed. The currently used approach to handle this is as follows:
 When typing a let binding or record, the algorithm adds all name bindings to the context up-front. This way referenced values will not be undefined when looked up, even if their definition was not type checked yet. The typcheck algorithm then starts with the first Label $A$ which references an unchecked expression labeled $B$.
 During typechecking of unchecked expressions (i.e $B$), they can simply be used to create upper and lower bounds (constraints). For empty type variables that is fine to do, but what happens when we actually check an unchecked expression (i.e $B$)? The inherent structure only then unfolds and during a normal typechecking flow, the type variable would get upper and lower bounds. These bounds are missing on the typecheck run of $A$ though.
 The implications of this are not clear to me yet. We have a later run of type simplification which could maybe tie the knots.
@@ -412,7 +432,7 @@ For this an aren is used to store all of the small, allocated code fragments. Th
   - only creates new types
 
 #pagebreak()
-= Apendix A
+= Apendix A <prelude>
 == List of Builtins
 
 - *abort* `s` : Abort Nix expression evaluation and print the error message `s`.

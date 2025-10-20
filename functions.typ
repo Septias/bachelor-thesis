@@ -27,14 +27,16 @@
   })
 }
 
-#let rule_name(name) = text(
-  fill: if name.starts-with("T") { yellow } else if name.starts-with("S") {
-    purple
-  } else if name.starts-with("C") { orange } else if name.starts-with("R") {
-    blue
-  } else { black },
-  smallcaps(name),
-)
+#let rule_name(name) = [
+  #text(
+    fill: if name.starts-with("T") { yellow } else if name.starts-with("S") {
+      purple
+    } else if name.starts-with("C") { orange } else if name.starts-with("R") {
+      blue
+    } else { black },
+    smallcaps(name),
+  )
+]
 
 #let derive(name, prem, conclusion) = [
   #table(
