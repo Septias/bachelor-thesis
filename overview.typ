@@ -8,7 +8,7 @@ In this document I try to lay out the current efforts of creating a type system 
 
 = Type System <ts>
 
-At some points I use _spread syntax_ like `{…rc}` which means a new record is created from the fields of `rc` where `rc` is a record. These new fields never overwrite existing fiels, meaning `{a : int, …{a : string}}` will reduce to `{a: int}`. Similar is possible for arrays, but naturally without deduplication. Example: [a, …[b c a]] => [a, b, c, a]
+I use _spread syntax_ like `{…rc}` which means a new record is created from the fields of `rc` where `rc` is a record. These new fields never overwrite existing fiels, meaning `{a : int, …{a : string}}` will reduce to `{a: int}`. Similar is possible for arrays, but naturally without deduplication. Example: [a, …[b c a]] => [a, b, c, a]
 
 I also oftentimes abbreviate $l_0 … l_n$ as $l_i$.
 
@@ -25,7 +25,7 @@ I also oftentimes abbreviate $l_0 … l_n$ as $l_i$.
       #type_name("Label") l & ::= "[A-Za-z_][A-Za-z0-9_'-]*"   \
   $
 ]
-The language consists of the standart base types string, boolean, number and label. Labels are distinct here, because we need a syntactic class in some places where only labels are allow. An example is a path that is constructed from labels interspersed by dots. i.e `hm.packages.git`
+The language consists of the standart base types string, boolean, number and label. Labels are distinct here, because we need a syntactic class in some places where only labels are allow. An example is a path that is constructed from labels interspersed by dots. i.e `hm.packages.git`.
 
 #colored_box(title: "Syntax", color: blue)[
   $
@@ -51,7 +51,7 @@ The language consists of the standart base types string, boolean, number and lab
 - Array elements are delimited by spaces, which is uncommon and records can be marked _recursive_ with the `rec` keyword. Both of these datatypes are _immutable_ but there are the concat operations (*Record-Concat* and *Array-Concat*) that can be used to create new, bigger datatypes.
 - Record lookups can be static (with a given label) or dynamic, with an arbitrary expression t, that has to reduce to a string. This is further discussed in @dynamic_lookup.
 - Let statements can have multiple bindigs $a_1 = t_1; … ; a_n = t_n$ before the `in` keyword appears.
-- The with expression expects an arbitrary expression that reduces to a record. Every field from the record is then added to the scope of the next exrpession.
+- The with-expression expects an arbitrary expression that reduces to a record. Every field from the record is then added to the scope of the next expression without shadowing existing variables. This is further discussed in @with.
 
 #colored_box(title: "Syntax: Record and Let fields", color: blue)[
   $
@@ -60,7 +60,7 @@ The language consists of the standart base types string, boolean, number and lab
     p & ::= l | p.l \
   $
 ]
-Both let-statemnts and records allow for _inhert statements_ to be placed between ordinary field declarations. Inherit statements take a known label for a value and _reintroduce_ the label as "label = value;" to the record or let. This feature is only syntactic sugar to make it easier to build records. Let statements can take a root path `(p)` which is prefixed to all following labels. This way a deep record can be refereced from which all labels are taken. For example, the term `inherit (world.objects.players) robert anders;` will add `robert = world.objects.players.robert; anders = world.objects.players.anders;` to the surrounding record or let expression.
+Both let-statements and records allow for _inhert statements_ to be placed between ordinary field declarations. Inherit statements take a known label for a value and _reintroduce_ the label as "label = value;" to the record or let-statement. This feature is only syntactic sugar to make it easier to build records. Let statements can take a root path `(p)` which is prefixed to all following lookups. This way a deep record can be refereced from which all values are taken. For example, the statement `inherit (world.objects.players) robert anders;` will add `robert = world.objects.players.robert; anders = world.objects.players.anders;` to the surrounding record or let expression.
 
 #colored_box(title: "Syntax: Pattern", color: blue)[
   $
@@ -70,7 +70,7 @@ Both let-statemnts and records allow for _inhert statements_ to be placed betwee
                         "e" & ::= l | l space ? space t                      \
   $
 ]
-Patterns can be open (…) or closed and also give default arguments with the `?` syntax. An example would be `{a, b ? "pratt", …}` which is an open pattern with a default value of "pratt" for the label b.
+Patterns can be open (…) or closed and also given default arguments with the `?` syntax. An example would be `{a, b ? "pratt", …}` which is an open pattern with a default value of "pratt" for the label b.
 
 
 #colored_box(title: "Reduction Rules", color: blue)[
@@ -96,24 +96,19 @@ Patterns can be open (…) or closed and also give default arguments with the `?
   $
 ]
 
-- R-Fun is the standart function β-reduction where the argument is replaced by the supplied arguments value in the body. I use `l := a` to say that the variable l is assigned value a in the body.
-- What then follows are function application variations for the different patterns that are possible. If a function expects a record with field l and is supplied such a record, it reduces like a normal function (R-Fun-Pat). If there are more arguments than needed, an error is raised (R-Fun-Err) but only if the pattern is not _open_ (R-Fun-Pat-Open). Lastly, it is possible to give default arguments for arguments that do not supply certain fields. I use the syntax `{..} \ l` to create an arbitrary record without the label l.
-- The pattern rules (R-Fun-Pat for example) only reduces for one field which is a problem. This is fixed by applying the the rules for single cases exhaustively until every possible pattern item is handled or (R-Fun-Err) stops reduction. This is still a bit handwavey and needs better formalization, but I hope the idea can be seen.
-
+- R-Fun is the standart function β-reduction where the argument is replaced by the supplied arguments value in the body. `b[l := a]` means that the variable l is assigned value a in the body.
+- It follows function application variations for the different patterns that are possible. If a function expects a record with field l and is supplied such a record, it reduces like a normal function (R-Fun-Pat). If there are more arguments than needed, an error is raised (R-Fun-Err) but only if the pattern is not _open_ (R-Fun-Pat-Open). Lastly, it is possible to give default arguments for arguments that do not supply certain fields. I use the syntax `{..} \ l` to create an arbitrary record without the label l.
+- The pattern rules (R-Fun-Pat for example) only reduces for one field which is a problem. This is fixed by applying the the rules for single cases matching their structure exhaustively until every possible pattern item is handled or (R-Fun-Err) stops reduction. TODO: This is still a bit handwavey and needs better formalization, but I hope the idea can be seen.
 - Lookup is handled by three rules, (R-Lookup, R-Lookup-Null, R-lookup-Default) which are straight forward. The two rules for the "has"-operator are straigtforward aswell.
+- Recursive records can be looked up but don't change their inner structure by this operation. The only difference is that the rec keyword is removed. TODO: I don't know how to feel about this and whether this "marker" should be kept or whether it is only used initially to check wellformedness of parsed expressions.
 
-- Recursive records can be looked up bot don't change structurally by this operation. The only difference is that the rec keyword is removed. I don't know how to feel about this and whether this "marker" should be kept or whether it is only used initially to check wellformedness of read expressions.
-
-- To reduce with-statements the first term has to reduce to a record and I don't like the formalization of that currently. For the next expression these fields are replaced for free variables. I use the `/=` operator to get this behaviour. See @with for further discussion.
+- To reduce with-statements the first term has to reduce to a record and I don't like the formalization of that currently. For the next expression the record fields are added to the scope without shadowing existing bindings. I use the `/=` operator to get this behaviour. See @with for further discussion.
 
 - The concat operations are quite natural given the _spread syntax_ described in @ts.
 
 
 #colored_box(title: "Values", color: blue)[$
-    p: b \
-    x \
-    {..} \
-    "rec" {..} \
+    p: b"  |  "x; "  |  "{..}"  |  rec" {..}
   $]
 
 
@@ -132,7 +127,7 @@ Patterns can be open (…) or closed and also give default arguments with the `?
 
 - TODO: Do we need an option type because we have functions with default arguments?
 - TODO: Kinds (label, pattern, )
-- TODO: Is recursion handled correctly
+- TODO: Is recursion handled correctly?
 
 #colored_box(title: "Typing Rules", color: purple)[
   #typings(
@@ -239,11 +234,11 @@ Patterns can be open (…) or closed and also give default arguments with the `?
   )
 ]
 
-- We have a standart typing context Γ, pre-filled with the standart library functions from @prelude and functions to handle the basic logic, arithmetic and \_ operators.
+- We have a standart typing context Γ, pre-filled with the standart library functions from @prelude and functions to handle the basic logic, arithmetic and comparison operators.
 - TODO: The rule "T-Or" should distinguish between the positive and negative case similar to if, and only return one type instead of a union.
 - TODO: "T-Rec-Concat" doesn't work really because of the generic subtyping rule. Further discussed in @records
 - TODO: T-multi-let can be made simpler because we can always rewrite multi-let to let-chains. Recursion has to be accounted for, that is still an open question.
-- TODO: T-With $l_i in.not Γ$ is too resstrictive because they can be there, they will just not be used.
+- TODO: T-With $l_i in.not Γ$ is too restrictive because shadowing labels are allowed, they will just not be used.
 
 #colored_box(title: "Subtying Rules", color: purple)[
   #typings([], (
@@ -319,10 +314,12 @@ What follows are the constraining rules used in the constrain subroutine of the 
   *Conditions*:
   - A: Fields in $τ_2$ must be present in $τ_1$
   - B: $τ_1$ must only have the fields in $τ_2$
+
+  *Remarks*
+  - $("lo", "up")^n$ is used to match a _type variable_ and their lower and upper bounds. The superscript gives the _level_ of the variable that is used to handle generalization of variables.
+  - $τ @ τ_1$ the \@ symbol is used to bind the whole preceding type to a new name (here $τ_1$)
+  - $"lo" ⩲ τ$ is a shorthand for $"lo" = "lo" + τ$ and used to extend the list of upper or lower bounds.
 ]
-
-
-"C-Fun" is the standart function subtyping rule, and "C-Rec" standart record width subtyping. The following two rules handle subtyping of patterns which is needed to coerce function arguments to function patterns.
 
 
 
@@ -333,16 +330,18 @@ What follows are the constraining rules used in the constrain subroutine of the 
 - Explain constrain fuction and move below subtyping
 
 = Equality
-- Attribute sets and lists are compared recursively, and therefore are fully evaluated.
+Attribute sets and lists are compared recursively, and therefore are fully evaluated.
 
 = Datatypes
 == Records <records>
-Records are defined very simple in this type system. The only supported record type is a list of label → type mappings which can be added during subtyping. There is no way to reorder them, or remove some. During typing, multiple object constraints are concatenated, so there is a way to add new fields. Two problems are present with the current implementation of the typesystem.
-Firstly we have have the `//` operator which implements _open record extension_. Given two records `A: { X: string, Y: int }` and `B: { X: int }` the open record concatenation between the two records `(C = A \\ B)` is `C: {X: int, Y: int}`. This together with the generic subtyping rule T-Sub makes the typesystem unsound, because fields can be removed, making the recod B empty (`T-SUB: B -> {}`). In this case, the typesystem would predict `A.X` to be of type `string` which is simply wrong after the application.
+Records are defined very simple in this type system. The only supported record type is a list of `label: type` mappings which can be added during subtyping. There is no way to reorder them, or remove some. During typing, multiple object constraints are concatenated, so there is a way to add new fields.
+
+Two problems occur with the current implementation. Firstly, we have have the `//` operator which implements _open record extension_. Given two records `A: { X: string, Y: int }` and `B: { X: int }` the open record concatenation between the two records `(C = A \\ B)` is `C: {X: int, Y: int}`. This together with the generic subtyping rule T-Sub leaves the typesystem unsound, because fields can be removed, leaving the recod B empty (`T-SUB: B -> {}`). In this case, the typesystem would predict `A.X` to be of type `string` which is simply wrong after the application.
+
 
 
 == Context Strings
-Context strings and dyanamic lookup share the same syntax in that you can insert some arbitrary term t into braces like this `${t}`. For ordinary strings and paths, the value of t will be coerced into a string and added literally. From a typing perspective this is the easy case because inserted values get a constraint of string and thats it. For dynamic lookup it gets trickier though.
+Context strings and dyanamic lookup share the same syntax in that you can insert some arbitrary term `t` into braces like this `${t}`. For ordinary strings and paths, the value of `t` will be coerced into a string and added literally. From a typing perspective this is the easy case because inserted values get a constraint of string and that's it. For dynamic lookup it gets trickier though.
 
 == Dynamic Lookup <dynamic_lookup>
 Context string allow lookups of the form `a.${t}` where t is allowed to be any expression that ultimately reduces to a string. The reduced string is then used to index the record which a is supposed to be. Since a type system only computes a type and not the actal value, the only possible approach to handle first-class-labels is to evaluate nix expressions to some extend. Writing a full evaluator is probably too much, but there could be heuristics for simple evaluation. One approach would be to work backwards from return statements in functions up until it gets to wieldy.
@@ -367,18 +366,21 @@ To handel these, all expected record fields need to be present in the function a
 There seem to be some special dunder methods for representations which are handled specially by the evaluator. I have not had the chance to look into it further.
 
 = Laziness and Recursiveness
-Laziness and recursion occur in two language constructs. The first one being recursive records and the second one being recursive let bindings. To evaluate them properly, a lazy evaluation scheme is needed. The currently used approach to handle this is as follows:
-When typing a let binding or record, the algorithm adds all name bindings to the context up-front. This way referenced values will not be undefined when looked up, even if their definition was not type checked yet. The typcheck algorithm then starts with the first Label $A$ which references an unchecked expression labeled $B$.
-During typechecking of unchecked expressions (i.e $B$), they can simply be used to create upper and lower bounds (constraints). For empty type variables that is fine to do, but what happens when we actually check an unchecked expression (i.e $B$)? The inherent structure only then unfolds and during a normal typechecking flow, the type variable would get upper and lower bounds. These bounds are missing on the typecheck run of $A$ though.
-The implications of this are not clear to me yet. We have a later run of type simplification which could maybe tie the knots.
+Laziness and recursion occur in two language constructs. The first one being _recursive records_ and the second one being _let bindings_. To evaluate them, a lazy evaluation scheme is needed which is currently implemented as follows:
+When typing a let binding or record, the algorithm adds all name bindings to the context up-front. This way referenced values will not be undefined when looked up, even if their definition was not type checked yet. The typcheck algorithm then starts with some arbitrary first label $A$ which may contain an unchecked expression labeled $B$.
+When this undefined label $B$ is found, it is simply used to create upper and lower bounds (constraints). For empty type variables that is fine to do, but when we actually check this $B$, will unfold and be constrained with upper and lower bounds. These bounds are missing on the typecheck run of $A$ then. An example would be `let f = a: a + 1; x = f b; b = "hi" in {}` In this case b would be constrained to be a number (because of the application and its implication) but afterwards it will be get its "real" type which is string. Currently, the constraint error would be placed at the wrong location (that of the true definition).
 
+```
+rec { x = { x = x;};}.x = { x = «repeated»}
+let x = {x = y;}; y = x; in x { x = «repeated»; }
+```
 
 = A Note about Implementation
-As if creating a sound type system for nix and all its features isn't enough work already, implementing an efficient type inference algorithm seems just as hard. The unique problem of nix is that every functionality (all 100.000 packages, the operating system, and the standart library) are part of one big piece of code that roots in a single file at github:com/nixpkgs/flake.nix or github.com/nixpkgs/default.nix, depending whether you use a flake based system or not. To handle this, the nix evaluator heavily relies on the laziness features of the language as to not have to evaluate all of the packages on its own. If you really wanted to auto-complete nixos options (which is the ultimate goal) you would have to parse and type the nixos module system in all its greatness and whatever is needed to reach it. This includes the standart library and bootstrappign code for the module system. To even reach this point, the type inference algorithm has to support the same kind of laziness, the nix evaluator uses because otherwise it would just keep evaluating forever.
+One unique problem of nix is that every functionality (all 100.000 packages, the operating system, and the standart library) are rooted in a _single file_ at github:com/nixpkgs/flake.nix or github.com/nixpkgs/default.nix, depending whether you use a flake based system or not. To not get lost in the weeds, the nix evaluator heavily relies on the laziness features of the language to not evaluate all of the packages on exhaustively. For the ultimate goal of auto-completing nixos options one would have to parse and type this very file with the goal to resolve the module system. This includes the standart library and bootstrappign code for the module system. To even reach it, the type inference algorithm has to support the same kind of laziness, the nix evaluator uses to not get lost.
 
 
 == Practical Type Inference in Face of Huge Syntax
-Code inference in the general case is similar to depth-first-search where you dig down one syntax tree and only return as soon as all branches have been exhausted. Since nix trees are huge, this approach is not feasible and one has to lean towards a breath-first-search style, which leans towards the currently inferred file and stops when too far off. To achive this behaviour, the inference algorithm at some point has to decide to stop inference and jump to another unfinished function, remembering at which place it left of.
+Code inference in the general case is similar to depth-first-search digging down one syntax tree and only returing as soon as all branches have been exhausted. Since nix trees are huge, this approach is not feasible and one has to lean towards a breath-first-search style, which focuses the currently inferred file and stops when "too far away". To achive this behaviour, the inference algorithm at some point has to decide to stop inference and jump to another unfinished function, remembering at which place it left of.
 In the nix language, there are two natural plces to do so. Laziness of records and let-statements give the natural approach that every newly named binding is a stop-point at which inference only proceed as far as needed. One heuristic could be to go two more functions down and then return to the let or record to generate at least some approximation of the final type.
 The import statements semantics of nix come in very handy at this point. Import statements act just as function calls with the only difference beeing, that the goto locations is defined by path and not by name. Other than that, they can take arguments just as a function, and then try to appyl given arguments to the files expression. This language design comes in very handy because that way, import staments do not occur at the top of the file where it would need to be decided how to continue typechecking them. They occur right at the location where they are needed, sometimes in let statements or record fields. This way, the laziness of records and let statements could already be enough to get laziness into the language.
 As for the practical approach, I propose a new marker type which can be set to bindings of a context. This marker type should contain all the information to go back to type inference at a previous location. This probably means cloning the context or restoring it to the previous state – cloning is probably easier. Another approach could be to keep the names undefined and add another mapping between names and reconstruction information somewhere that acts as a fallback.
@@ -396,14 +398,16 @@ scopedImport overrides ./imported.nix
 ```
 
 == Type inference in a language server setting
-A language server settings adds one more level of complexity to the stack. A language server has to handle the communication between client (an editor like vim, emacs, vscode) and the server itself. It will be notified frequently of code changes and has to adapt to these changes almost immediately to not annoy the user. This is why rust-analyzer and nil, which I take as template for my own efforts, have chosen to use or create _incremental computation_ frameworks for the rust language.
+A language server settings adds one more level of complexity. A language server has to handle the communication between client (an editor like vim, emacs, vscode, ect.) and the server itself. It will be notified frequently of code changes and has to adapt to these changes almost immediately to not annoy the user. This is why rust-analyzer and nil, which I take as template for my own efforts, have chosen to use or create _incremental computation_ frameworks for the rust language.
 The one used by rust-analyzer and nil (which is based off of rust-analzyer) is _salsa_. The name stems from the underlying red-green algorithm that decides whether a function needs to be reevaluated because their arguments changed or whether the memoized return value can be returned immediately.
 In the end salsa consists of _inputs_, _tracked functions_ and _tracked structs_. Inputs are divided into their durability and given to tracked functions. These tracked functions record the inputs and do some arbitrary computation with them. During these computations, the functions might create immutable tracked structs which can act as new inputs to other tracked functions. Tracked structs are interned into a db and act as a single identifier which are cheap to copy around and provide great performance benefits. With these components alone it is possible to create a hirarchy of pure functions that allow for reproducability.
 
 When implementing this incrementality framework one has to decide where to draw the line between tracking everything too closely such that the framework bloat adds latency and tracking too few intermediate results such that recomputation is heavy again.
 
-The generalized structure of the three language servers ought to be as follows. A user opens a file and the lsp client sends the text to the language server. The lange server stores this somewhere and adds it to the typing pipeline. The first step of this pipeline is of cause lexing and parsing the file. Nil already provides a parser for lossless syntax trees that are handy for error reporting. The file is then lowered into another HIR which is more or less syntax independent and thus changes less frequently. This is neccessary because otherwise everything would have to be recomputed all the time. After this, the HIR is given to the inference algorithm that tries to infer a type.
-For this an aren is used to store all of the small, allocated code fragments. This is another form of interning, that enables us to only work with small ids.
+The generalized structure of the three language servers ought to be as follows. A user opens a file and the lsp client sends the text to the language server. The lange server stores the text somewhere and adds it to the typing pipeline. The first step of this pipeline is of cause lexing and parsing the file. Nil already provides a parser for lossless syntax trees that are handy for error reporting. The file is then lowered into another HIR which is more or less syntax independent and thus changes less frequently. This is neccessary because otherwise everything would have to be recomputed all the time. After this, the HIR is given to the inference algorithm that tries to infer a type.
+For this an arena is used to store all of the small, allocated code fragments. This is another form of interning, that enables us to only work with small ids instead of cloning the actual heavy AST.
+
+I am current at works to transition from salsa 0.17-pre2 to salsa 0.24 which is the newest version of salsa. As a lot has changed and virtually every part of code is touched, this is very time consuming.
 
 = Code Overview
 *inputs of lsp*:
