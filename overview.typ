@@ -8,21 +8,18 @@ In this document I try to lay out the current efforts of creating a type system 
 
 = Type System <ts>
 
-I use _spread syntax_ like `{…rc}` which means a new record is created from the fields of `rc` where `rc` is a record. These new fields never overwrite existing fields, meaning `{a : int, …{a : string}}` will reduce to `{a: int}`. Similar is possible for arrays, but naturally without deduplication. Example: [a, …[b c a]] => [a, b, c, a]
-
-I also oftentimes abbreviate $l_0 … l_n$ as $l_i$.
-
 #v(.5cm)
 #colored_box(title: "Syntax: Basetypes", color: blue)[
   Definition of some base types using regular expressions.
   $
-                          c & ::= "[^\"$\\] | $(?!{) | \\."    \
-                    "inter" & ::= "${"\^} *"}"                 \
-     #type_name("String") s & ::= "\"(c"*" inter)"*" c"*"\""   \
-    #type_name("Boolean") b & ::= "true" | "false"             \
-       #type_name("Path") p & ::= "(./|~/|/)([a-z A-Z .]+/?)+" \
-     #type_name("Number") n & ::= "([0-9]*\.)?[0-9]+"          \
-      #type_name("Label") l & ::= "[A-Za-z_][A-Za-z0-9_'-]*"   \
+                           c & ::= "[^\"$\\] | $(?!{) | \\."    \
+                     "inter" & ::= "${"\^} *"}"                 \
+      #type_name("String") s & ::= "\"(c"*" inter)"*" c"*"\""   \
+     #type_name("Boolean") b & ::= "true" | "false"             \
+        #type_name("Path") p & ::= "(./|~/|/)([a-z A-Z .]+/?)+" \
+      #type_name("Number") n & ::= "([0-9]*\.)?[0-9]+"          \
+       #type_name("Label") l & ::= "[A-Za-z_][A-Za-z0-9_'-]*"   \
+    #type_name("Variable") v & ::= "[A-Za-z_][A-Za-z0-9_'-]*"   \
   $
 ]
 The language consists of the standard base types string, boolean, number and label. Labels are distinct here, because we need a syntactic class in some places where only labels are allowed. An example is a path that is constructed from labels interspersed by dots, i.e. `hm.packages.git`.
@@ -30,8 +27,8 @@ The language consists of the standard base types string, boolean, number and lab
 #colored_box(title: "Syntax", color: blue)[
   $
     t ::=
-    &| b | s | p | n | l | "null" \
-    #type_name("Record") &| {#text(fill: green)[a] _i} | #text(weight: "bold")[rec] {#text(fill: green)[a] _i}\
+    &| b | s | p | n | l | v | "null" \
+    #type_name("Record") &| {#text(fill: green)[a] _i} | #text(weight: "bold")[rec] {#text(fill: green)[a] _i} \
     #type_name("Array") &| [ space t_0 space t_1 space ... space t_n space] \
     #type_name("Has-Attribute") &| t #text(weight: "bold", " ? ") l \
     #type_name("Has-Attribute-Or") &| t.l #text(weight: "bold")[or] t \
@@ -43,7 +40,7 @@ The language consists of the standard base types string, boolean, number and lab
     &| #text(weight: "bold")[let] #text(fill: green)[a] _i #text(weight: "bold")[in] t \
     &| #text(weight: "bold")[if] t #text(weight: "bold")[then] t #text(weight: "bold")[else] t \
     &| #text(weight: "bold")[with] t; t \
-    &| #text(weight: "bold")[assert] t; t
+    &| #text(weight: "bold")[assert] t; t \
   $
 ]
 
@@ -74,42 +71,43 @@ Patterns can be open (…) or closed and can also be given default arguments wit
 
 
 #colored_box(title: "Reduction Rules", color: blue)[
-  Let $a,b$ and $t$ range over syntax terms and $l$ over label.
+  Let $t, t_1$ and $t_2$ range over syntax terms and $l, v$ over identifiers (labels and variables).
   $
-    (l: b)a & arrow.long b[l := a] &&#rule_name("R-Fun") \
-    ({l}: b){l: a} & arrow.long b[l := a] &&#rule_name("R-Fun-Pat") \
-    ({l}: b){l: a, m: b} & arrow.long ¤ &&#rule_name("R-Fun-Err") \
-    ({l, ...}: b){l: a, m: b} & arrow.long b[l := a] &&#rule_name("R-Fun-Pat-Open") \
-    ({l" ? "t}: b)({..}\\l) & arrow.long b[l := t] &&#rule_name("R-Fun-Pat-Default") \
-    {l: t}.l & arrow.long t &&#rule_name("R-Lookup") \
-    ({..}\\b).b & arrow.long "null" &&#rule_name("R-Lookup-Null") \
-    ({..}\\b).b" or "t & arrow.long b &&#rule_name("R-Lookup-Default") \
-    ({..}\\b)" ? "b & arrow.long "false" &&#rule_name("R-Has-Pos") \
-    {b: t,..}" ? "b & arrow.long "true" &&#rule_name("R-Has-Neg") \
-    ("rec" { l = {l = l};};).l & arrow.long {l = { l = l;}};"   " &&#rule_name("R-Rec") \
-    "let" l_i = a_i; "in" b & arrow.long b[l_i = a_i] &&#rule_name("R-Let") \
-    "with" {l_i = a_i}; b & arrow.long b[l_i "/=" a_i ] &&#rule_name("R-With") \
-    "if true then "a" else "b & arrow.long a &&#rule_name("R-Cond-True") \
-    "if false then "a" else "b & arrow.long b &&#rule_name("R-Cond-False") \
-    a ⧺ b & arrow.long [ …a, …b] &&#rule_name("R-Array-Concat") \
-    a " //" b & arrow.long {…b, …a} &&#rule_name("R-Record-Concat") \
+    (l: t_2)t_1 & arrow.long t_2[l := t_1] &&#rule_name("R-Fun") \
+    ({l_i}: t){l_i = t_i;} & arrow.long t[l_i := t_i] &&#rule_name("R-Fun-Pat") \
+    ({l_i, ...}: t){l_i = t_i; ..} & arrow.long t[l_i := t_i] &&#rule_name("R-Fun-Pat-Open") \
+    ({l_i" ? "t_i, l_j}: t_2)({l_k = t_k; l_j = t_j;}) & arrow.long t_2[l_m := t_m][l_n = t_n][l_j := t_j] &&#rule_name("R-Fun-Pat-Default") \
+    "Where" &m = {i: ∃k. i = k}; n = {i: exists.not k. i = k} \
+    {l: t, ..}.l & arrow.long t &&#rule_name("R-Lookup") \
+    ({..}\\l).l & arrow.long "null" &&#rule_name("R-Lookup-Null") \
+    ({..}\\l).l" or "t & arrow.long t &&#rule_name("R-Lookup-Default") \
+    ({..}\\l)" ? "l & arrow.long "false" &&#rule_name("R-Has-Pos") \
+    {l: t,..}" ? "l & arrow.long "true" &&#rule_name("R-Has-Neg") \
+    // ("rec" { l = {l = t};};).l & arrow.long {l = { l = l;}};"   " &&#rule_name("R-Rec") \
+    "let" v_i = t_i; "in" t_2 & arrow.long t_2[l_i = t_i] &&#rule_name("R-Let") \
+    "with" {l_i = t_i}; t_2 & arrow.long t_2[l_i "/=" t_i ] &&#rule_name("R-With") \
+    "if true then "t_1" else "t_2 & arrow.long t_1 &&#rule_name("R-Cond-True") \
+    "if false then "t_1" else "t_2 & arrow.long t_2 &&#rule_name("R-Cond-False") \
+    t_1 ⧺ t_2 & arrow.long [ …t_1, …t_2 ] &&#rule_name("R-Array-Concat") \
+    t_1 " //" t_2 & arrow.long {…t_2 , …t_1} &&#rule_name("R-Record-Concat") \
   $
+
+  I use _spread syntax_ like ${…"rc"}$ which means a new record is created from the fields of `rc` where `rc` is a record. These new fields never overwrite existing fields, meaning `{a : int, …{a : string}}` will reduce to `{a: int}`. Similar is possible for arrays, but naturally without deduplication. For two records $A: {l_i: t_i}$ and $B: {l_i: t_i}$ this means ${..A, ..B} = {l_a = t_a; l_b = t_b;}$ where $a ∈ {i: l_i ∈ A }$ and $b ∈ { i: l_i ∈ ( B \\ A) }$. $B \\ A$ is the Record B where every label i has been removed if it is in A.
+
+  I also oftentimes abbreviate $l_0 … l_n$ as $l_i$.
+  Two dots (..) denote that there are other bindings possible in a record where as three dots (...) are used for spread syntax and the open pattern.
 ]
 
 - R-Fun is the standard function β-reduction where the argument is replaced by the supplied argument's value in the body. `b[l := a]` means that the variable l is assigned value a in the body.
-- What follows are function application variations for the different patterns that are possible. If a function expects a record with field l and is supplied such a record, it reduces like a normal function (R-Fun-Pat). If there are more arguments than needed, an error is raised (R-Fun-Err) but only if the pattern is not _open_ (R-Fun-Pat-Open). Lastly, it is possible to give default arguments for arguments that do not supply certain fields. I use the syntax `{..} \ l` to create an arbitrary record without the label l.
-- The pattern rules (R-Fun-Pat for example) only reduce for one field which is a problem. This is fixed by applying the rules for single cases matching their structure exhaustively until every possible pattern item is handled or (R-Fun-Err) stops reduction. TODO: This is still a bit hand-wavy and needs better formalization, but I hope the idea can be seen.
-- Lookup is handled by three rules, (R-Lookup, R-Lookup-Null, R-Lookup-Default) which are straightforward. The two rules for the "has"-operator are straightforward as well.
-- Recursive records can be looked up but don't change their inner structure by this operation. The only difference is that the rec keyword is removed. TODO: I don't know how to feel about this and whether this "marker" should be kept or whether it is only used initially to check wellformedness of parsed expressions.
-
+- I use the syntax `{..} \ l` to create an arbitrary record without the label l.
+// - Recursive records can be looked up but don't change their inner structure by this operation. The only difference is that the rec keyword is removed. TODO: I don't know how to feel about this and whether this "marker" should be kept or whether it is only used initially to check wellformedness of parsed expressions.
 - To reduce with statements the first term has to reduce to a record and I don't like the formalization of that currently. For the next expression the record fields are added to the scope without shadowing existing bindings. I use the `/=` operator to get this behavior. See @with for further discussion.
-
-- The concat operations are quite natural given the _spread syntax_ described in @ts.
 
 
 #colored_box(title: "Values", color: blue)[$
-    p: b"  |  "x; "  |  "{..}"  |  rec" {..}
-  $]
+    p: t"  |  "x; "  |  "{..}"  |  rec" {..}
+  $
+]
 
 
 #colored_box(title: "Types", color: green)[
@@ -238,6 +236,7 @@ Patterns can be open (…) or closed and can also be given default arguments wit
 - TODO: The rule "T-Or" should distinguish between the positive and negative case similar to if, and only return one type instead of a union.
 - TODO: "T-Rec-Concat" doesn't work really because of the generic subtyping rule. Further discussed in @records
 - TODO: T-multi-let can be made simpler because we can always rewrite multi-let to let-chains. Recursion has to be accounted for, that is still an open question.
+- TODO: T-If could be implemented as a function aswell. Thougts?
 - TODO: T-With $l_i in.not Γ$ is too restrictive because shadowing labels are allowed, they will just not be used.
 
 #colored_box(title: "Subtyping Rules", color: purple)[
@@ -322,12 +321,12 @@ What follows are the constraining rules used in the constrain subroutine of the 
 ]
 
 
-
 = TODO
 - Define Wellformedness?
 - Define Evaluation contexts?
 - Add polarized variables?
-- Explain constrain fuction and move below subtyping
+- Explain constrain fuction
+
 
 = Equality
 Attribute sets and lists are compared recursively, and therefore are fully evaluated.
@@ -362,7 +361,7 @@ In my Bachelor's Thesis, I handled inherit statements as syntactic rewrites whic
 Functions luckily are pure and functional which helps in inferring a proper type immensely. Patterns are given as records, showing which exact fields are wanted for this function. The ellipsis `(…)` then allows for arbitrary extra fields, and the `?` question mark syntax for default values.
 To handle these, all expected record fields need to be present in the function argument so a record constraint with these fields can be added to the argument of the function. If a default value is given for some record fields, a constraint can be made on the arguments as well.
 
-== Dunder methods
+== Dunder Methods
 There seem to be some special dunder methods for representations which are handled specially by the evaluator. I have not had the chance to look into it further.
 
 = Laziness and Recursiveness
@@ -371,9 +370,9 @@ When typing a let binding or record, the algorithm adds all name bindings to the
 When this undefined label $B$ is found, it is simply used to create upper and lower bounds (constraints). For empty type variables that is fine to do, but when we actually check this $B$, it will unfold and be constrained with upper and lower bounds. These bounds are missing on the typecheck run of $A$ then. An example would be `let f = a: a + 1; x = f b; b = "hi" in {}` In this case b would be constrained to be a number (because of the application and its implication) but afterwards it will get its "real" type which is string. Currently, the constraint error would be placed at the wrong location (that of the true definition).
 
 #figure(
-  ```
-  rec { x = { x = x;};}.x = { x = «repeated»}
-  let x = {x = y;}; y = x; in x { x = «repeated»; }
+  ```nix
+  rec { x = { x = x;};}.x;       # → { x = «repeated»; }
+  let x = {x = y;}; y = x; in x  # → { x = «repeated»; }
   ```,
   caption: [Examples of recursive patterns from the nix repl],
 )
