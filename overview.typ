@@ -74,33 +74,54 @@ Let statements can take a root path `(p)` which is prefixed to all following loo
 Patterns can be open (…) or closed and can also be given default arguments with the `?` syntax. An example would be `{a, b ? "pratt", …}` which is an _open_ pattern with a default value of "pratt" for the label b.
 
 
-#colored_box(title: "Reduction Rules", color: blue)[
-  Let $t, t_1$ and $t_2$ range over syntax terms and $l, v$ over identifiers (labels and variables).
+#colored_box(title: "Evaluation Contexts", color: blue)[$
+    A & := V | "let "x = m " in "A                                         \
+    E & := [] | E e | (E).l | "if " E " then " t " else "t | E + t | v + E \
+      & | "vet" x = M                                                      \
   $
-    (l: t_2)t_1 & arrow.long t_2[l := t_1] &&#rule_name("R-Fun") \
-    ({l_i}: t){l_i = t_i;} & arrow.long t[l_i := t_i] &&#rule_name("R-Fun-Pat") \
-    ({l_i, ...}: t){l_i = t_i; ..} & arrow.long t[l_i := t_i] &&#rule_name("R-Fun-Pat-Open") \
-    ({l_i" ? "t_i, l_j}: t_2)({l_k = t_k; l_j = t_j;}) & arrow.long t_2[l_m := t_m][l_n = t_n][l_j := t_j] &&#rule_name("R-Fun-Pat-Default") \
+]
+Contextclosure: $e → e' ==> E[e] → E[e']$
+
+#colored_box(title: "Reduction Rules", color: blue)[
+  Let $t, t_1$ and $t_2$ range over syntax terms and $l, v$ over identifiers (labels and variables). H stores and memoizes thunks that are used during evaluation.
+  $
+    ⟨(l: t_2)t_1, H⟩ & arrow.long ⟨t_2[l := a], H[a = t_1]⟩ &&#rule_name("R-Fun") \
+    ⟨({l_i}: t){l_i = t_i;}, H⟩ & arrow.long ⟨t[l_i := a_i], H[a_i = t_i]⟩ &&#rule_name("R-Fun-Pat") \
+    ⟨({l_i, ...}: t){l_i = t_i; ..}, H⟩ & arrow.long ⟨t[l_i := a_i], H[a_i = t_i]⟩ &&#rule_name("R-Fun-Pat-Open") \
+    ⟨({l_i" ? "t_i, l_j}: t_2)({l_k = t_k; l_j = t_j;}), H⟩ & arrow.long ⟨t_2[l_m := a_m][l_n = a_n][l_j := a_j], H[..]⟩ &&#rule_name("R-Fun-Pat-Default") \
     "Where" &m = {i: ∃k. i = k}; n = {i: exists.not k. i = k} \
     {l: t, ..}.l & arrow.long t &&#rule_name("R-Lookup") \
-    ({..}\\l).l & arrow.long "null" &&#rule_name("R-Lookup-Null") \
-    ({..}\\l).l" or "t & arrow.long t &&#rule_name("R-Lookup-Default") \
-    ({..}\\l)" ? "l & arrow.long "false" &&#rule_name("R-Has-Pos") \
-    {l: t,..}" ? "l & arrow.long "true" &&#rule_name("R-Has-Neg") \
+    ⟨({..}\\l).l, H⟩ & arrow.long ⟨"null", H⟩ &&#rule_name("R-Lookup-Null") \
+    ⟨(l: t_1, {..}).l" or "t_2, H⟩ & arrow.long ⟨"fv"(H[t_1]), H⟩ &&#rule_name("R-Lookup-Default-Pos") \
+    ⟨({..}\\l).l" or "t, H⟩ & arrow.long ⟨t, H⟩ &&#rule_name("R-Lookup-Default-Neg") \
+    ⟨({..}\\l)" ? "l, H⟩ & arrow.long "false" &&#rule_name("R-Has-Pos") \
+    ⟨{l: t,..}" ? "l, H⟩ & arrow.long "true" &&#rule_name("R-Has-Neg") \
     // ("rec" { l = {l = t};};).l & arrow.long {l = { l = l;}};"   " &&#rule_name("R-Rec") \
-    "let" v_i = t_i; "in" t_2 & arrow.long t_2[l_i = t_i] &&#rule_name("R-Let") \
-    "with" {l_i = t_i}; t_2 & arrow.long t_2[l_i "/=" t_i ] &&#rule_name("R-With") \
-    "if true then "t_1" else "t_2 & arrow.long t_1 &&#rule_name("R-Cond-True") \
-    "if false then "t_1" else "t_2 & arrow.long t_2 &&#rule_name("R-Cond-False") \
-    t_1 ⧺ t_2 & arrow.long [ …t_1, …t_2 ] &&#rule_name("R-Array-Concat") \
-    t_1 " //" t_2 & arrow.long {…t_2 , …t_1} &&#rule_name("R-Record-Concat") \
+    ⟨"let" v_i = t_i; "in" t_2, H⟩ & arrow.long ⟨t_2[l_i = v_i], H[v_i = t_i]⟩ &&#rule_name("R-Let") \
+    ⟨"with" {l_i = t_i}; t_2, H⟩ & arrow.long ⟨t_2[l_i "⊜ " a_i ], H[a_i = t_i]⟩ &&#rule_name("R-With") \
+    ⟨"if true then "t_1" else "t_2, H⟩ & arrow.long ⟨t_1, H⟩ &&#rule_name("R-Cond-True") \
+    ⟨"if false then "t_1" else "t_2, H⟩ & arrow.long ⟨t_2, H⟩ &&#rule_name("R-Cond-False") \
+    ⟨t_1 ⧺ t_2, H⟩ & arrow.long ⟨[ …"fv"(H(t_1)), …"fv"(H(t_2)) ], H⟩ &&#rule_name("R-Array-Concat") \
+    ⟨t_1 " //" t_2, H⟩ & arrow.long ⟨{…t_2 , …t_1}, H⟩ &&#rule_name("R-Record-Concat") \
   $
-
-  I use _spread syntax_ like ${…"rc"}$ which means a new record is created from the fields of `rc` where `rc` is a record. These new fields never overwrite existing fields, meaning `{a : int, …{a : string}}` will reduce to `{a: int}`. Similar is possible for arrays, but naturally without deduplication. For two records $A: {l_i: t_i}$ and $B: {l_i: t_i}$ this means ${..A, ..B} = {l_a = t_a; l_b = t_b;}$ where $a ∈ {i: l_i ∈ A }$ and $b ∈ { i: l_i ∈ ( B \\ A) }$. $B \\ A$ is the Record B where every label i has been removed if it is in A.
-
-  I also oftentimes abbreviate $l_0 … l_n$ as $l_i$.
-  Two dots (..) denote that there are other bindings possible in a record where as three dots (...) are used for spread syntax and the open pattern.
 ]
+#colored_box(title: "Evaluation Rules", color: blue)[
+  #stack(
+    dir: ltr,
+    spacing: 1cm,
+    derive(
+      "F-Force-Step",
+      ($⟨a, H[a -> e]⟩$, $⟨e, H⟩ -> ⟨e', H'⟩$),
+      $⟨a, H⟩ -> ⟨a, H'[a -> e']⟩$,
+    ),
+    derive("F-Force-Value", ($H[a -> v]$, $v: "Value"$), $⟨a, H⟩ -> ⟨v, H⟩$),
+  )
+]
+
+The _spread syntax_ ${…"rc"}$ means a new record is created from the fields of `rc` where `rc` is a record. These new fields never overwrite existing fields, meaning `{a : int, …{a : string}}` will reduce to `{a: int}`. Similar is possible for arrays, but naturally without deduplication. For two records $A: {l_i: t_i}$ and $B: {l_i: t_i}$ this means ${..A, ..B} = {l_a = t_a; l_b = t_b;}$ where $a ∈ {i: l_i ∈ A }$ and $b ∈ { i: l_i ∈ ( B \\ A) }$. $B \\ A$ is the Record B where every label i has been removed if it is in A.
+
+I also oftentimes abbreviate $l_0 … l_n$ as $l_i$.
+Two dots (..) denote that there are other bindings possible in a record where as three dots (...) are used for spread syntax and the open pattern.
 
 - R-Fun is the standard β-reduction for functions where the argument is replaced by the supplied argument's value in the body. `b[l := a]` means that the variable l is assigned value a in the body.
 - I use the syntax `{..} \ l` to create an arbitrary record without the label l.
@@ -108,13 +129,6 @@ Patterns can be open (…) or closed and can also be given default arguments wit
 - To reduce with statements the first term has to reduce to a record and I don't like the formalization of that currently. For the next expression the record fields are added to the scope without shadowing existing bindings. I use the `/=` operator to get this behavior. See @with for further discussion.
 
 
-#colored_box(title: "Evaluation Contexts", color: blue)[$
-    A & := V | "let "x = m " in "A         \
-    E & := [] | e E | v E' | E + e | v + E \
-      & | "vet" x = M                      \
-  $
-]
-Contextclosure: $e → e' ==> E[e] → E[e']$
 
 #colored_box(title: "Values", color: blue)[$
     p: t"  |  "x; "  |  "{..}"  |  rec" {..}
