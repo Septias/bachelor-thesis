@@ -82,15 +82,15 @@ Patterns can be open (…) or closed and can also be given default arguments wit
 // Contextclosure: $e → e' ==> E[e] → E[e']$
 
 #colored_box(title: "Reduction Rules", color: blue)[
-  Let $t, t_1$ and $t_2$ range over syntax terms and $l, v$ over identifiers (labels and variables). H stores and memoizes thunks that are used during evaluation.
+  Let $t, t_1$ and $t_2$ range over syntax terms and $l, v$ over identifiers (labels and variables). H stores and memoizes thunks that are used during evaluation and sometimes left out if unchanged.
   $
     ⟨(l: t_2)t_1, H⟩ & arrow.long ⟨t_2[l := a], H[a = t_1]⟩ &&#rule_name("R-Fun") \
     ⟨({l_i}: t){l_i = t_i;}, H⟩ & arrow.long ⟨t[l_i := a_i], H[a_i = t_i]⟩ &&#rule_name("R-Fun-Pat") \
     ⟨({l_i, ...}: t){l_i = t_i; ..}, H⟩ & arrow.long ⟨t[l_i := a_i], H[a_i = t_i]⟩ &&#rule_name("R-Fun-Pat-Open") \
     ⟨({l_i" ? "t_i, l_j}: t_2)({l_k = t_k; l_j = t_j;}), H⟩ & arrow.long ⟨t_2[l_m := a_m][l_n = a_n][l_j := a_j], H[..]⟩ &&#rule_name("R-Fun-Pat-Default") \
     "Where" &m = {i: ∃k. i = k}; n = {i: exists.not k. i = k} \
-    {l: t, ..}.l & arrow.long t &&#rule_name("R-Lookup") \
-    ⟨({l_i = t_i}l).l, H⟩ & arrow.long ⟨"null", H⟩ "if" ∄j. l_j = l &&#rule_name("R-Lookup-Null") \
+    ⟨{l: t, ..}.l, H⟩& arrow.long ⟨"fv"(t), H⟩ &&#rule_name("R-Lookup") \
+    ⟨({l_i = t_i}).l, H⟩ & arrow.long ⟨"null", H⟩ "if" ∄j. l_j = l &&#rule_name("R-Lookup-Null") \
     ⟨(l: t_1, {..}).l" or "t_2, H⟩ & arrow.long ⟨"fv"(H[t_1]), H⟩ &&#rule_name("R-Lookup-Default-Pos") \
     ⟨({..}\\l).l" or "t, H⟩ & arrow.long ⟨t, H⟩ &&#rule_name("R-Lookup-Default-Neg") \
     ⟨({..}\\l)" ? "l, H⟩ & arrow.long "false" &&#rule_name("R-Has-Pos") \
@@ -104,6 +104,8 @@ Patterns can be open (…) or closed and can also be given default arguments wit
     ⟨t_1 " //" t_2, H⟩ & arrow.long ⟨{…t_2 , …t_1}, H⟩ &&#rule_name("R-Record-Concat") \
   $
 ]
+- $"fv"$ (=force value) is a function that computes the thunk on first request, or returns the cached value on consecuetive requests.
+
 #colored_box(title: "Evaluation Rules", color: blue)[
   #stack(
     dir: ltr,
