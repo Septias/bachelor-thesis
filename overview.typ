@@ -6,7 +6,7 @@
 In this document I try to lay out the current efforts of creating a type system and its implementation as a language server written in Rust. This document should act as an overview such that we (Peter Thiemann, Taro Sekiyama and I) have a common ground to discuss next steps and current efforts. Most of it is WIP and there are many loose ends and even contradictions.
 
 
-= Type System <ts>
+= Syntax <syn>
 
 #v(.5cm)
 #colored_box(title: "Syntax: Basetypes", color: blue)[
@@ -75,12 +75,11 @@ Patterns can be open (…) or closed and can also be given default arguments wit
 
 
 #colored_box(title: "Evaluation Contexts", color: blue)[$
-    A & := V | "let "x = m " in "A                                         \
-    E & := [] | E e | (E).l | "if " E " then " t " else "t | E + t | v + E \
-      & | "vet" x = M                                                      \
+    // A & := V | "let "x = m " in "A                                         \
+    E & := [] | E e | (E).l | "if " E " then " t " else "t | E + t | v + E
   $
 ]
-Contextclosure: $e → e' ==> E[e] → E[e']$
+// Contextclosure: $e → e' ==> E[e] → E[e']$
 
 #colored_box(title: "Reduction Rules", color: blue)[
   Let $t, t_1$ and $t_2$ range over syntax terms and $l, v$ over identifiers (labels and variables). H stores and memoizes thunks that are used during evaluation.
@@ -91,13 +90,13 @@ Contextclosure: $e → e' ==> E[e] → E[e']$
     ⟨({l_i" ? "t_i, l_j}: t_2)({l_k = t_k; l_j = t_j;}), H⟩ & arrow.long ⟨t_2[l_m := a_m][l_n = a_n][l_j := a_j], H[..]⟩ &&#rule_name("R-Fun-Pat-Default") \
     "Where" &m = {i: ∃k. i = k}; n = {i: exists.not k. i = k} \
     {l: t, ..}.l & arrow.long t &&#rule_name("R-Lookup") \
-    ⟨({..}\\l).l, H⟩ & arrow.long ⟨"null", H⟩ &&#rule_name("R-Lookup-Null") \
+    ⟨({l_i = t_i}l).l, H⟩ & arrow.long ⟨"null", H⟩ "if" ∄j. l_j = l &&#rule_name("R-Lookup-Null") \
     ⟨(l: t_1, {..}).l" or "t_2, H⟩ & arrow.long ⟨"fv"(H[t_1]), H⟩ &&#rule_name("R-Lookup-Default-Pos") \
     ⟨({..}\\l).l" or "t, H⟩ & arrow.long ⟨t, H⟩ &&#rule_name("R-Lookup-Default-Neg") \
     ⟨({..}\\l)" ? "l, H⟩ & arrow.long "false" &&#rule_name("R-Has-Pos") \
     ⟨{l: t,..}" ? "l, H⟩ & arrow.long "true" &&#rule_name("R-Has-Neg") \
     // ("rec" { l = {l = t};};).l & arrow.long {l = { l = l;}};"   " &&#rule_name("R-Rec") \
-    ⟨"let" v_i = t_i; "in" t_2, H⟩ & arrow.long ⟨t_2[l_i = v_i], H[v_i = t_i]⟩ &&#rule_name("R-Let") \
+    ⟨"let" l_i = t_i; "in" t_2, H⟩ & arrow.long ⟨t_2[l_i = v_i], H[v_i = t_i]⟩ &&#rule_name("R-Let") \
     ⟨"with" {l_i = t_i}; t_2, H⟩ & arrow.long ⟨t_2[l_i "⊜ " a_i ], H[a_i = t_i]⟩ &&#rule_name("R-With") \
     ⟨"if true then "t_1" else "t_2, H⟩ & arrow.long ⟨t_1, H⟩ &&#rule_name("R-Cond-True") \
     ⟨"if false then "t_1" else "t_2, H⟩ & arrow.long ⟨t_2, H⟩ &&#rule_name("R-Cond-False") \
@@ -128,7 +127,8 @@ Two dots (..) denote that there are other bindings possible in a record where as
 // - Recursive records can be looked up but don't change their inner structure by this operation. The only difference is that the rec keyword is removed. TODO: I don't know how to feel about this and whether this "marker" should be kept or whether it is only used initially to check wellformedness of parsed expressions.
 - To reduce with statements the first term has to reduce to a record and I don't like the formalization of that currently. For the next expression the record fields are added to the scope without shadowing existing bindings. I use the `/=` operator to get this behavior. See @with for further discussion.
 
-
+= Type System
+What follows are the typing and subtyping rules as well as an overview over the constraint subroutine.
 
 #colored_box(title: "Values", color: blue)[$
     p: t"  |  "x; "  |  "{..}"  |  rec" {..}
@@ -138,20 +138,22 @@ Two dots (..) denote that there are other bindings possible in a record where as
 
 #colored_box(title: "Types", color: green)[
   $
-    tau &::= tau -> tau | alpha | top | bot \
+    // "Kind" k &:= star, P, L \
+    "Booleans" b &:= "true" | "false"
+    "Type" tau &::= tau -> tau | alpha | top | bot \
     #type_name("Type Connectives") &| tau union.sq tau | tau inter.sq tau \
     #type_name("Recursion") &| mu alpha space tau \
     #type_name("Base Types") &| "bool" | "string" | "path" | "num" \
     #type_name("Records") &| {l_0 : tau" ... "l_n: tau} | ⟨l_0 : tau " ... " l_n: tau⟩ \
     #type_name("Lists") &| [" "tau" "] | [" "τ_1" "…" "τ_n" "] \
-    #type_name("Patterns") &| ({l_0: tau; ...; l_n: tau }, "bool") \
-    #type_name("Kind") k &:= star, P, L
+    #type_name("Patterns") &| ({l_0: p; ...; l_n: p }, b) \
+    "Pattern Elemenst" p &:= τ | τ^?
   $
 ]
 
 - TODO: Do we need an option type because we have functions with default arguments?
-- TODO: Kinds (label, pattern, )
-- TODO: Is recursion handled correctly?
+  - From pattern to var?
+- TODO: Pattern Type should be as expressive as the syntax construct
 
 #colored_box(title: "Typing Rules", color: purple)[
   #typings(
@@ -163,12 +165,20 @@ Two dots (..) denote that there are other bindings possible in a record where as
           ($x: ∀ arrow(α). space τ in Γ$,),
           $Γ tack x: τ[arrow(α) \\ arrow(τ)]$,
         ),
-        derive("T-Abs", ($Γ, x: τ_1 tack t: τ_2$,), $Γ tack x: t: τ_1 → τ_2$),
         derive(
           "T-App",
           ($Γ tack t_1: τ_1 → τ_2$, $Γ tack t_2: τ_1$),
           $t_1 t_2: τ_2$,
         ),
+      ),
+      (
+        derive("T-Abs", ($Γ, x: τ_1 tack t: τ_2$,), $Γ tack (x: t): τ_1 → τ_2$),
+        derive(
+          "T-Abs-Pat",
+          ($Γ, oi(x\: τ) tack t: τ_2$,),
+          $Γ tack ({oi(x)}: t): oi(τ) → τ_2$,
+        ),
+        derive("T-Abs-Pat-Opt", ($"TODO"$,), $"TODO"$),
       ),
       (
         derive(
@@ -181,22 +191,29 @@ Two dots (..) denote that there are other bindings possible in a record where as
       ),
       (
         derive("T-Negate", ($Γ tack e: "bool"$,), $Γ tack !e: "bool"$),
-        derive("T-Check", ($Γ tack e: {l: τ}$,), $Γ tack e ? l: "bool"$),
+        derive("T-Check", ($Γ tack e: {..}$,), $Γ tack e ? l: "bool"$),
+      ),
+      (
         derive(
-          "T-Or",
+          "T-Or-Neg",
           ($Γ tack t_1: {l: τ_1}$, $Γ tack t_2: τ_2$),
-          $Γ tack t_1.l "or" t_2: τ_1 union.sq τ_2$,
+          $Γ tack (t_1).l "or" t_2: τ_1$,
+        ),
+        derive(
+          "T-Or-Pos",
+          ($Γ tack t_1: τ_1$, $l ∉ τ_1$, $Γ tack t_2: τ_2$),
+          $Γ tack (t_1).l "or" t_2: τ_2$,
         ),
       ),
       (
         derive(
           "T-Lst-Hom",
           ($Γ tack t_0: τ$, "...", $Γ tack t_n: τ$),
-          $Γ tack [ " " t_0 " " t_1 " " ... " " t_n " "]: [ τ]$,
+          $Γ tack [ " " t_0 " " t_1 " " ... " " t_n " "]: [τ]$,
         ),
         derive(
           "T-Lst-Agg",
-          ($Γ tack t_0: τ_0$, "...", $Γ tack t_n: τ_n$),
+          ($Γ tack t_0: τ_0$, "...", $Γ tack t_n: τ_n$, $∃ i, j. τ_i != τ_j$),
           $Γ tack [space t_0 space t_1 space ... " " t_n] : [ τ_0 space τ_1 space ... space τ_n]$,
         ),
       ),
@@ -216,7 +233,7 @@ Two dots (..) denote that there are other bindings possible in a record where as
         derive(
           "T-Rec-Concat",
           ($Γ tack a: { l_i: τ_i }$, $Γ tack b: { l_j: τ_j }$),
-          $Γ tack a "//" b: a backslash b union b$,
+          $Γ tack a "//" b: {..b, ..b}$,
         ),
       ),
       (
@@ -249,9 +266,9 @@ Two dots (..) denote that there are other bindings possible in a record where as
       ),
       (
         derive(
-          "T-Assert",
-          ($Γ tack t_1: "As<bool>"$, $Γ tack t_2: τ_2$),
-          $Γ tack "assert" t_1; t_2: τ₂$,
+          "T-Assert-Pos",
+          ($Γ tack t_1: b$, $Γ tack t_2: τ_2$),
+          $Γ tack "assert" t_1; t_2: τ_2$,
         ),
       ),
     ),
@@ -259,10 +276,10 @@ Two dots (..) denote that there are other bindings possible in a record where as
 ]
 
 - We have a standard typing context Γ, pre-filled with the standard library functions from @prelude and functions to handle the basic logic, arithmetic and comparison operators.
-- TODO: The rule "T-Or" should distinguish between the positive and negative case similar to if, and only return one type instead of a union.
+- $∀ arrow(a)$ represents a _type scheme_ with many polymorphic variables α_i. These are used for let-polymorphism.
+
 - TODO: "T-Rec-Concat" doesn't work really because of the generic subtyping rule. Further discussed in @records
 - TODO: T-multi-let can be made simpler because we can always rewrite multi-let to let-chains. Recursion has to be accounted for, that is still an open question.
-- TODO: T-If could be implemented as a function aswell. Thougts?
 - TODO: T-With $l_i in.not Γ$ is too restrictive because shadowing labels are allowed, they will just not be used.
 
 #colored_box(title: "Subtyping Rules", color: purple)[
@@ -320,7 +337,10 @@ Two dots (..) denote that there are other bindings possible in a record where as
   // ))
 ]
 
-What follows are the constraining rules used in the constrain subroutine of the implementation. This uses the subtyping rules and applies them to types.
+- ⊳ and ⊲ are used to add and remove _typing hypotheses_ that are formed during subtyping. Since applying such a hypothesis right after assumption, the later modality ⊳ is added and can only be removed after subtyping passed through a function or record construct. *TODO: check*
+
+What follows are the constraining rules used in the constrain subroutine of the implementation. It uses the subtyping rules and applies them to types. The underlying algorithm uses _levels_ to distinguish type variables that should be generalized and not. When entering a let-binding, the level is increased as every new type variable should adhere to _let-polymorphism_. During type inference, the algorithm also keeps track of the current level and only generalizes variables that are above the current level. This is done by cloning the inherent structure of the type but adding new type variables. In the rust implementation this is done by the `freshen_above()` function.
+
 #colored_box(title: "Constraining rules", color: purple)[
   Constraining takes two types τ₁ and τ₂ and constraints the first type to be subtype of the other.
   #v(1cm)
@@ -330,10 +350,10 @@ What follows are the constraining rules used in the constrain subroutine of the 
     {τ_1},({τ_2}, #text("true", weight: "bold")) &arrow.squiggly ∀i ∈ τ_2. "constrain"(τ_(1i), τ_(2i))"   if A" &&#rule_name("C-Pat-Open") \
     {τ_1} , ({τ_2}, #text("false", weight: "bold")) &arrow.squiggly ∀i ∈ τ_2. "constrain"(τ_(1i), τ_(2i)) "  if A ∧ B  "&&#rule_name("C-Pat-Closed")\
     [τ_1] , [τ_2] &arrow.squiggly "constrain"(τ_1, τ_2) &&#rule_name("C-Array") \
-    ("lo", "up")^n, τ^m "  if" m <= n &arrow.squiggly "lo" ⩲ τ; ∀l ∈ "lo". "constrain"(l, τ) &&#rule_name("C-Var-⋆")\
-    ("lo", "up")^n@τ_1, τ_2"       " &arrow.squiggly "constrain("τ_1", extrude("τ_2", false, n))" &&#rule_name("C-Var-⋆")\
+    ("lo", "up")^n, τ^m "  if" m <= n &arrow.squiggly "up" ⩲ τ; ∀l ∈ "lo". "constrain"(l, τ) &&#rule_name("C-Var-⋆")\
+    τ_1^n, τ_2 &arrow.squiggly "constrain("τ_1", extrude("τ_2", false, n))" &&#rule_name("C-Var-⋆")\
     τ^n , ("lo", "up")^m "if" n <= m &arrow.squiggly "lo" ⩲ τ; ∀u ∈ "ul". "constrain"(τ, u) &&#rule_name("C-⋆-Var")\
-    τ_1, ("lo", "up")^m@τ_2 &arrow.squiggly "constrain(extrude("τ_1", true, m), "τ_2")" &&#rule_name("C-⋆-Var")\
+    τ_1, t_2^m &arrow.squiggly "constrain(extrude("τ_1", true, m), "τ_2")" &&#rule_name("C-⋆-Var")\
   $
   #v(1cm)
   *Conditions*:
@@ -342,14 +362,15 @@ What follows are the constraining rules used in the constrain subroutine of the 
 
   *Remarks*
   - $("lo", "up")^n$ is used to match a _type variable_ and their lower and upper bounds. The superscript gives the _level_ of the variable that is used to handle generalization of variables.
-  - $τ @ τ_1$ the \@ symbol is used to bind the whole preceding type to a new name (here $τ_1$)
   - $"lo" ⩲ τ$ is a shorthand for $"lo" = "lo" + τ$ and used to extend the list of upper or lower bounds.
 ]
 
-
-= TODO
-- Define Wellformedness?
-- Explain constrain fuction
+- C-Fun is standard function subtyping.
+- C-Rec implements width-subtyping of records in the standard manner. It also adds depth-subtyping due to recursion.
+- C-Pat-open handles open patterns and has similar semantics to record constraining. The rule C-pat-Closed handles closed patterns with the extra condition that $t_1$ can not have any additional fields to $t_2$ which is inforced in condition $B$.
+- Homogenous arrays are constrained as one would expect. Heterogenous arrays with many different field types, are constrained in order.
+- What follows are the typvariable constraining rules. These depend on the levels of variables and their bounds $("lo", "up")$. C-Var-∗ handles the case where the constrained var is ow higher type than the constraining var.
+- $"extrude"(t)$ is used to create a new type of similar shape to the input but fixed type variables. We need this because lower bounds could refer to variables of higher level than the vars level. Since
 
 
 = Equality
@@ -382,7 +403,7 @@ The second problem is what I call the _attribution problem_. It occurs when ther
 Inherit statements can be handled as syntactic sugar.
 
 == Function Patterns
-Functions are pure and functional which helps in inferring a proper type. Patterns are given as records, showing which exact fields are wanted "as parameters". The ellipsis `(…)` allows for arbitrary extra fields, and the `?` question mark syntax for default values.
+Functions are pure and functional which helps in inferring a proper type. Patterns are given as records, showing which exact fields are wanted "as parameters". The ellipsis `(…)` allSows for arbitrary extra fields, and the `?` question mark syntax for default values.
 To handle these, all expected record fields need to be present in the function argument so a record constraint with these fields can be added to the argument of the function. If a default value is given for some record fields, a constraint can be made on the arguments as well.
 
 == Dunder Methods
@@ -429,7 +450,7 @@ scopedImport overrides ./imported.nix
 == Type Inference in a Language Server Setting
 A language server setting adds one more level of complexity. A language server has to handle the communication between client (an editor like vim, emacs, vscode, etc.) and the server itself. It will be notified frequently of code changes and has to adapt to these changes almost immediately to not annoy the user. This is why rust-analyzer and nil, which I take as template for my own efforts, have chosen to use or create _incremental computation_ frameworks for the rust language.
 The one used by rust-analyzer and nil (which is based off of rust-analyzer) is _salsa_. The name stems from the underlying red-green algorithm that decides whether a function needs to be reevaluated because its arguments changed or whether the memoized return value can be returned immediately.
-In the end, salsa consists of _inputs_, _tracked functions_ and _tracked structs_. Inputs are divided into their durability and given to tracked functions. These tracked functions record the inputs and do some arbitrary computation with them. During these computations, the functions might create immutable tracked structs which can act as new inputs to other tracked functions. Tracked structs are interned into a db and act as a single identifier which are cheap to copy around and provide great performance benefits. With these components alone it is possible to create a hierarchy of pure functions that allow for reproducibility.
+In the end, salsa consists of _inputs_, _tracked functions_ and _tracked structs_. Inputs are divided into their durability and given to tracked functions. These tracked functions record the inputs and do some arbitrary computation with them. During these computations, the functions might create immutable tracked structs which can act as new inputs to other tracked functions. TraScked structs are interned into a db and act as a single identifier which are cheap to copy around and provide great performance benefits. With these components alone it is possible to create a hierarchy of pure functions that allow for reproducibility.
 
 When implementing this incrementality framework one has to decide where to draw the line between tracking everything too closely such that the framework bloat adds latency and tracking too few intermediate results such that recomputation is heavy again. I currently choose to track inputs, and functions as well as initial calls.
 
@@ -543,3 +564,7 @@ I am currently working to transition from salsa 0.17-pre2 to salsa 0.24 which is
 - *null* : Literal `null`.
 - *outputOf* `drv out` : Return output path of derivation.
 - *parseDrvName* `s` : Parse a derivation name into components.
+
+#page[
+  #bibliography(("bib/types.bib", "bib/original.bib", "bib/nixos.bib"))
+]

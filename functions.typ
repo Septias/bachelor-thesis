@@ -1,5 +1,8 @@
 #let red_700 = rgb(185, 28, 28)
 
+// shorthand to create a simple overline and index i
+#let oi(body) = $overline(body)^i$
+
 #let type_name(name) = text(
   font: ("FreeSans",),
   size: 9pt,
