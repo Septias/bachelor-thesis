@@ -1,5 +1,5 @@
 {
-  description = "Bachelor thesis";
+  description = "Bachelor Thesis";
   inputs = {
     os_flake.url = "github:septias/nixos-config";
     nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable";
