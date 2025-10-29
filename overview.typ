@@ -49,6 +49,7 @@ The language consists of the standard base types string, boolean, number and lab
 - Record lookups can be static (with a given label) or dynamic, with an arbitrary expression t, that has to reduce to a string. This is further discussed in @dynamic_lookup.
 - Let statements can have multiple bindings $a_1 = t_1; … ; a_n = t_n$ before the `in` keyword appears.
 - The _with statement_ expects an arbitrary expression that reduces to a record. Every field from the record is then added to the scope of the next expression without shadowing existing variables. This is further discussed in @with.
+- TODO: Add \@-syntax
 
 #colored_box(title: "Syntax: Record and Let fields", color: blue)[
   $
@@ -58,9 +59,9 @@ The language consists of the standard base types string, boolean, number and lab
   $
 ]
 
-Both let-statements and records allow _inherit statements_ to be placed between ordinary field declarations. Inherit statements take a known label for a value and _reintroduce_ the label as "label = value;" to the record or let expression. This feature is only syntactic sugar to make it easier to build records.
+Both let-statements and records allow _inherit statements_ to be placed between ordinary field declarations. Inherit statements take a known label for a value and _reintroduce_ the label as "label = value;" to the record or let expression. This feature is only syntactic sugar to build records and let-expressions easier.
 
-Let statements can take a root path `(p)` which is prefixed to all following lookups. This way, a deep record can be referenced from which all values are taken. For example, the statement `inherit (world.objects.players) robert anders;` will add `robert = world.objects.players.robert; anders = world.objects.players.anders;` to the surrounding record or let expression.
+Let statements can take a root path $p$ which is prefixed to all following lookups. This way, a deep record can be referenced from which all values are taken. For example, the statement `inherit (world.objects.players) robert anders;` will add `robert = world.objects.players.robert; anders = world.objects.players.anders;` to the surrounding record or let-expression.
 
 #colored_box(title: "Syntax: Pattern", color: blue)[
   $
@@ -71,18 +72,19 @@ Let statements can take a root path `(p)` which is prefixed to all following loo
   $
 ]
 
-Patterns can be open (…) or closed and can also be given default arguments with the `?` syntax. An example would be `{a, b ? "pratt", …}` which is an _open_ pattern with a default value of "pratt" for the label b.
+Patterns can be _open_ marked by the bold ellipsis (#text(weight: "bold")[…]) or _closed_ and can also be given default arguments with the `?` syntax. An example would be `{a, b ? "pratt", …}` which is an _open_ pattern with a default value of "pratt" for the label $b$.
 
 
 #colored_box(title: "Evaluation Contexts", color: blue)[$
     // A & := V | "let "x = m " in "A                                         \
-    E & := [] | E e | (E).l | "if " E " then " t " else "t | E + t | v + E
+    E & := [] | E e | (E).l | (v).E | "if " E " then " t " else "t | E + t | v + E
   $
 ]
+
 // Contextclosure: $e → e' ==> E[e] → E[e']$
 
 #colored_box(title: "Reduction Rules", color: blue)[
-  Let $t, t_1$ and $t_2$ range over syntax terms and $l, v$ over identifiers (labels and variables). H stores and memoizes thunks that are used during evaluation and sometimes left out if unchanged.
+  Let $t, t_1$ and $t_2$ range over syntax terms and $l$ over identifiers (labels and variables). H stores and memoizes thunks that are used during evaluation and sometimes left out if unchanged.
   $
     ⟨(l: t_2)t_1, H⟩ & arrow.long ⟨t_2[l := a], H[a = t_1]⟩ &&#rule_name("R-Fun") \
     ⟨({l_i}: t){l_i = t_i;}, H⟩ & arrow.long ⟨t[l_i := a_i], H[a_i = t_i]⟩ &&#rule_name("R-Fun-Pat") \
@@ -100,7 +102,7 @@ Patterns can be open (…) or closed and can also be given default arguments wit
     ⟨"with" {l_i = t_i}; t_2, H⟩ & arrow.long ⟨t_2[l_i "⊜ " a_i ], H[a_i = t_i]⟩ &&#rule_name("R-With") \
     ⟨"if true then "t_1" else "t_2, H⟩ & arrow.long ⟨t_1, H⟩ &&#rule_name("R-Cond-True") \
     ⟨"if false then "t_1" else "t_2, H⟩ & arrow.long ⟨t_2, H⟩ &&#rule_name("R-Cond-False") \
-    ⟨t_1 ⧺ t_2, H⟩ & arrow.long ⟨[ …"fv"(H(t_1)), …"fv"(H(t_2)) ], H⟩ &&#rule_name("R-Array-Concat") \
+    ⟨t_1 ⧺ t_2, H⟩ & arrow.long ⟨[ …t_1, …t_2 ], H⟩ &&#rule_name("R-Array-Concat") \
     ⟨t_1 " //" t_2, H⟩ & arrow.long ⟨{…t_2 , …t_1}, H⟩ &&#rule_name("R-Record-Concat") \
   $
 ]
@@ -119,15 +121,14 @@ Patterns can be open (…) or closed and can also be given default arguments wit
   )
 ]
 
-The _spread syntax_ ${…"rc"}$ means a new record is created from the fields of `rc` where `rc` is a record. These new fields never overwrite existing fields, meaning `{a : int, …{a : string}}` will reduce to `{a: int}`. Similar is possible for arrays, but naturally without deduplication. For two records $A: {l_i: t_i}$ and $B: {l_i: t_i}$ this means ${..A, ..B} = {l_a = t_a; l_b = t_b;}$ where $a ∈ {i: l_i ∈ A }$ and $b ∈ { i: l_i ∈ ( B \\ A) }$. $B \\ A$ is the Record B where every label i has been removed if it is in A.
+- The _spread syntax_ ${…"rc"}$ is used to create a new record from the fields of `rc` where `rc` is a record. These new fields never overwrite existing fields, meaning `{a : int, …{a : string}}` will reduce to `{a: int}`. Similar is possible for arrays, but naturally without deduplication. For two records $A: {l_i: t_i}$ and $B: {l_i: t_i}$ this means ${..A, ..B} = {l_a = t_a; l_b = t_b;}$ where $a ∈ {i: l_i ∈ A }$ and $b ∈ { i: l_i ∈ ( B \\ A) }$. $B \\ A$ is the Record B where every label i has been removed if it is in A.
+- $l_0 … l_n$ is abbreviated as $l_i$ sometimes.
+- Two dots (..) denote that there are other bindings possible in a record where as three dots (...) are used for spread syntax and the open pattern.
 
-I also oftentimes abbreviate $l_0 … l_n$ as $l_i$.
-Two dots (..) denote that there are other bindings possible in a record where as three dots (...) are used for spread syntax and the open pattern.
-
-- R-Fun is the standard β-reduction for functions where the argument is replaced by the supplied argument's value in the body. `b[l := a]` means that the variable l is assigned value a in the body.
+- R-Fun is the standard β-reduction for functions where the argument is replaced by the supplied argument's value in the body. `b[l := a]` means that the variable $l$ is assigned value $a$ in the body $b$.
 - I use the syntax `{..} \ l` to create an arbitrary record without the label l.
 // - Recursive records can be looked up but don't change their inner structure by this operation. The only difference is that the rec keyword is removed. TODO: I don't know how to feel about this and whether this "marker" should be kept or whether it is only used initially to check wellformedness of parsed expressions.
-- To reduce with statements the first term has to reduce to a record and I don't like the formalization of that currently. For the next expression the record fields are added to the scope without shadowing existing bindings. I use the `/=` operator to get this behavior. See @with for further discussion.
+- To reduce with statements the first term has to reduce to a record and I don't like the formalization of that currently. For the next expression the record fields are added to the scope without shadowing existing bindings. I use the `⊜` operator to get this behavior. See @with for further discussion.
 
 = Type System
 What follows are the typing and subtyping rules as well as an overview over the constraint subroutine.
@@ -137,25 +138,22 @@ What follows are the typing and subtyping rules as well as an overview over the 
   $
 ]
 
-
 #colored_box(title: "Types", color: green)[
   $
     // "Kind" k &:= star, P, L \
-    "Booleans" b &:= "true" | "false"
-    "Type" tau &::= tau -> tau | alpha | top | bot \
+    "Type" tau &::= tau -> tau | alpha | top | bot | b \
     #type_name("Type Connectives") &| tau union.sq tau | tau inter.sq tau \
     #type_name("Recursion") &| mu alpha space tau \
     #type_name("Base Types") &| "bool" | "string" | "path" | "num" \
     #type_name("Records") &| {l_0 : tau" ... "l_n: tau} | ⟨l_0 : tau " ... " l_n: tau⟩ \
     #type_name("Lists") &| [" "tau" "] | [" "τ_1" "…" "τ_n" "] \
     #type_name("Patterns") &| ({l_0: p; ...; l_n: p }, b) \
-    "Pattern Elemenst" p &:= τ | τ^?
+    "Pattern element" p &:= τ | τ^?
   $
 ]
 
 - TODO: Do we need an option type because we have functions with default arguments?
   - From pattern to var?
-- TODO: Pattern Type should be as expressive as the syntax construct
 
 #colored_box(title: "Typing Rules", color: purple)[
   #typings(
@@ -269,7 +267,7 @@ What follows are the typing and subtyping rules as well as an overview over the 
       (
         derive(
           "T-Assert-Pos",
-          ($Γ tack t_1: b$, $Γ tack t_2: τ_2$),
+          ($Γ tack t_1: "bool"$, $Γ tack t_2: τ_2$),
           $Γ tack "assert" t_1; t_2: τ_2$,
         ),
       ),
@@ -280,6 +278,7 @@ What follows are the typing and subtyping rules as well as an overview over the 
 - We have a standard typing context Γ, pre-filled with the standard library functions from @prelude and functions to handle the basic logic, arithmetic and comparison operators.
 - $∀ arrow(a)$ represents a _type scheme_ with many polymorphic variables α_i. These are used for let-polymorphism.
 
+- TODO: Handle function type inference for patterns with default values
 - TODO: "T-Rec-Concat" doesn't work really because of the generic subtyping rule. Further discussed in @records
 - TODO: T-multi-let can be made simpler because we can always rewrite multi-let to let-chains. Recursion has to be accounted for, that is still an open question.
 - TODO: T-With $l_i in.not Γ$ is too restrictive because shadowing labels are allowed, they will just not be used.
@@ -340,8 +339,10 @@ What follows are the typing and subtyping rules as well as an overview over the 
 ]
 
 - ⊳ and ⊲ are used to add and remove _typing hypotheses_ that are formed during subtyping. Since applying such a hypothesis right after assumption, the later modality ⊳ is added and can only be removed after subtyping passed through a function or record construct. *TODO: check*
+- The general idea of the typing algorithm is, that typing progresses and finally constraints are installed on type-variables. The rules need to be chosen in a way, that this general approach is possible.
 
-What follows are the constraining rules used in the constrain subroutine of the implementation. It uses the subtyping rules and applies them to types. The underlying algorithm uses _levels_ to distinguish type variables that should be generalized and not. When entering a let-binding, the level is increased as every new type variable should adhere to _let-polymorphism_. During type inference, the algorithm also keeps track of the current level and only generalizes variables that are above the current level. This is done by cloning the inherent structure of the type but adding new type variables. In the rust implementation this is done by the `freshen_above()` function.
+What follows are the constraining rules used in the constrain subroutine of the implementation. It uses the subtyping rules and applies them to types. The underlying algorithm uses _levels_ to distinguish type variables that should be generalized and not. When entering a let-binding, the level is increased as every new type variable should adhere to _let-polymorphism_. During type inference, the algorithm also keeps track of the current level and only generalizes variables that are above the current level.
+Instatiation is done by cloning the inherent structure of the type but adding new type variables above the current level which is done by the `freshen_above()` function.
 
 #colored_box(title: "Constraining rules", color: purple)[
   Constraining takes two types τ₁ and τ₂ and constraints the first type to be subtype of the other.
@@ -371,8 +372,8 @@ What follows are the constraining rules used in the constrain subroutine of the 
 - C-Rec implements width-subtyping of records in the standard manner. It also adds depth-subtyping due to recursion.
 - C-Pat-open handles open patterns and has similar semantics to record constraining. The rule C-pat-Closed handles closed patterns with the extra condition that $t_1$ can not have any additional fields to $t_2$ which is inforced in condition $B$.
 - Homogenous arrays are constrained as one would expect. Heterogenous arrays with many different field types, are constrained in order.
-- What follows are the typvariable constraining rules. These depend on the levels of variables and their bounds $("lo", "up")$. C-Var-∗ handles the case where the constrained var is ow higher type than the constraining var.
-- $"extrude"(t)$ is used to create a new type of similar shape to the input but fixed type variables. We need this because lower bounds could refer to variables of higher level than the vars level. Since
+- What follows are the typvariable constraining rules. These depend on the levels of variables and their bounds $("lo", "up")$. C-Var-∗ handles the case where the constrained var is of higher type than the constraining var.
+- $"extrude"(t)$ is used to create a new type of similar shape to the input but fixed type variables. We need this because lower bounds could refer to variables of higher level than the vars level letting them "escape".
 
 
 = Equality
@@ -390,6 +391,7 @@ Since there is no way to remove labels from a record, we don't need lacks predic
 == Context Strings
 Context strings and dynamic lookup share the same syntax in that you can insert some arbitrary term `t` into braces with the following syntax `${t}`. For ordinary strings and paths, the value of `t` will be coerced into a string and added literally. From a typing perspective, this is the easy case because inserted values get a constraint of string and that's it. For dynamic lookup it gets trickier though.
 
+
 == Dynamic Lookup <dynamic_lookup>
 Context strings allow lookups of the form `a.${t}` where t is allowed to be any expression that ultimately reduces to a string. The reduced string is then used to index the record which a is supposed to be. Since a type system only computes a type and not the actual value, the only possible approach to handle first-class labels is to evaluate nix expressions to some extent. Writing a full evaluator is probably too much, but there could be heuristics for simple evaluation. One approach would be to work backwards from return statements in functions up until it gets too unwieldy.
 This would also mean implementing the standard library functions like map, readToString etc. One ray of hope is that these were probably already implemented in Tvix.
@@ -397,7 +399,7 @@ This would also mean implementing the standard library functions like map, readT
 
 = Constructs
 == With Statements <with>
-With statements allow introducing all bindings of a record into the following expression. For this, the first expression (A) in $"with " A"; "B$ has to reduce to a record. If that does not work, typing should raise an error. For explicit records, the following typing is straightforward. Just introduce all fields to the scope without shadowing and continue typechecking $B$. For the case that A is a type variable, it gets tricky however because of the generic subsumption rule. When A is subtyped like follows $A: {X: "int"} arrow A: {}$, then the field X would not be accessible in the function body.
+With statements allow introducing all bindings of a record into the following expression. For this, the first expression (A) in $"with " A"; "B$ has to reduce to a record. If that does not work, typing should raise an _error_. For explicit records, the following typing is straightforward. Just introduce all fields to the scope without shadowing and continue typechecking $B$. For the case that A is a type variable, it gets tricky however because of the generic subsumption rule. When A is subtyped like follows $A: {X: "int"} arrow A: {}$, then the field X would not be accessible in the function body.
 The second problem is what I call the _attribution problem_. It occurs when there is a chain of with statements $"with "A; ("with "B;) t$ and A and B are type variables. Now when trying to lookup $x$ in t, it is unclear whether x came from B or A.
 
 
@@ -410,6 +412,7 @@ To handle these, all expected record fields need to be present in the function a
 
 == Dunder Methods
 There seem to be some special dunder methods for representations which are handled specially by the evaluator. I have not had the chance to look into it further.
+
 
 = Laziness and Recursiveness
 Laziness and recursion occur in two language constructs. The first one being _recursive records_ and the second one being _let bindings_. To evaluate them, a lazy evaluation scheme is needed which is currently implemented as follows:
@@ -424,7 +427,7 @@ When this undefined label $B$ is found, it is simply used to create upper and lo
   caption: [Examples of recursive patterns from the nix repl],
 )
 
-= A Note about Implementation
+= A Note on Implementation
 One unique problem of nix is that everything (all 100,000 packages, the operating system, and the standard library) are rooted in a _single file_ at #link("https://github.com/NixOS/nixpkgs/blob/master/flake.nix") or #link("https://github.com/NixOS/nixpkgs/blob/master/default.nix"), depending on whether you use a flake based system or not. To not get lost in the weeds, the nix evaluator heavily relies on the laziness features of the language to not evaluate all of the packages exhaustively. For the ultimate goal of auto-completing nixos options one would have to parse and type this very file with the goal to resolve the module system. This includes the standard library and bootstrapping code for the module system. To even reach it, the type inference algorithm has to support the same kind of laziness the nix evaluator uses to not get lost.
 
 
@@ -434,7 +437,7 @@ In the nix language, there are two natural places to do so. Laziness of records 
 
 The import statement semantics of nix come in very handy at this point. Import statements act just as function calls with the only difference being, that the goto location is defined by path and not by name. Other than that, they can take arguments just as a function, and then try to apply given arguments to the file's expression.
 
-This language design comes in very handy because that way, import statements do not occur at the top of the file where it would need to be decided how to continue typechecking them. They occur right at the location where they are needed, sometimes in let statements or record fields. This way, the laziness of records and let statements could already be enough to get laziness into the language.
+This language design comes in very handy because that way, import statements do not occur at the top of the file where it would need to be decided how to continue typechecking them. They occur right at the location where they are needed, sometimes in let-expressions or record fields. This way, the laziness of records and let-expressions could already be enough to get laziness into the language.
 As for the practical approach, I propose a new marker type which can be set to bindings of a context. This marker type should contain all the information to go back to type inference at a previous location. This probably means cloning the context or restoring it to the previous state – cloning is probably easier. Another approach could be to keep the names undefined and add another mapping between names and reconstruction information somewhere that acts as a fallback.
 
 
