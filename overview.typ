@@ -570,6 +570,6 @@ I am currently working to transition from salsa 0.17-pre2 to salsa 0.24 which is
 - *outputOf* `drv out` : Return output path of derivation.
 - *parseDrvName* `s` : Parse a derivation name into components.
 
-#page[
-  #bibliography(("bib/types.bib", "bib/original.bib", "bib/nixos.bib"))
-]
+// #page[
+//   #bibliography(("bib/types.bib", "bib/original.bib", "bib/nixos.bib"))
+// ]
