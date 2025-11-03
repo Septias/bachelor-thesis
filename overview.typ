@@ -84,42 +84,42 @@ Patterns can be _open_ marked by the bold ellipsis (#text(weight: "bold")[…]) 
 // Contextclosure: $e → e' ==> E[e] → E[e']$
 
 #colored_box(title: "Reduction Rules", color: blue)[
-  Let $t, t_1$ and $t_2$ range over syntax terms and $l$ over identifiers (labels and variables). H stores and memoizes thunks that are used during evaluation and sometimes left out if unchanged.
+  Let $t, t_1$ and $t_2$ range over syntax terms and $l$ over identifiers (labels and variables).
   $
-    ⟨(l: t_2)t_1, H⟩ & arrow.long ⟨t_2[l := a], H[a = t_1]⟩ &&#rule_name("R-Fun") \
-    ⟨({l_i}: t){l_i = t_i;}, H⟩ & arrow.long ⟨t[l_i := a_i], H[a_i = t_i]⟩ &&#rule_name("R-Fun-Pat") \
-    ⟨({l_i, ...}: t){l_i = t_i; ..}, H⟩ & arrow.long ⟨t[l_i := a_i], H[a_i = t_i]⟩ &&#rule_name("R-Fun-Pat-Open") \
-    ⟨({l_i" ? "t_i, l_j}: t_2)({l_k = t_k; l_j = t_j;}), H⟩ & arrow.long ⟨t_2[l_m := a_m][l_n = a_n][l_j := a_j], H[..]⟩ &&#rule_name("R-Fun-Pat-Default") \
+    (l: t_2)t_1 & arrow.long t_2[l := t_1] &&#rule_name("R-Fun") \
+    (oi({l_i}): t)oi({l_i = t_i;}) & arrow.long t oi([l_i := t_i]) &&#rule_name("R-Fun-Pat") \
+    (oi({l_i, ...}): t) oj({l_i = t_i; ..}) & arrow.long t oi([l_i := a_i])#h(0.5cm) ∀i. ∃ j. i eq j &&#rule_name("R-Fun-Pat-Open") \
+    (oi({l_i" ? "t_i, l_j}): t_2)({l_k = t_k; l_j = t_j;}) & arrow.long
+    t_2overline([l_m := a_m])^m overline([l_n = a_n])^n overline([l_j := a_j])^j &&#rule_name("R-Fun-Pat-Default") \
     "Where" &m = {i: ∃k. i = k}; n = {i: exists.not k. i = k} \
-    ⟨{l: t, ..}.l, H⟩& arrow.long ⟨"fv"(t), H⟩ &&#rule_name("R-Lookup") \
-    ⟨({l_i = t_i}).l, H⟩ & arrow.long ⟨"null", H⟩ "if" ∄j. l_j = l &&#rule_name("R-Lookup-Null") \
-    ⟨(l: t_1, {..}).l" or "t_2, H⟩ & arrow.long ⟨"fv"(H[t_1]), H⟩ &&#rule_name("R-Lookup-Default-Pos") \
-    ⟨({..}\\l).l" or "t, H⟩ & arrow.long ⟨t, H⟩ &&#rule_name("R-Lookup-Default-Neg") \
-    ⟨({..}\\l)" ? "l, H⟩ & arrow.long "false" &&#rule_name("R-Has-Pos") \
-    ⟨{l: t,..}" ? "l, H⟩ & arrow.long "true" &&#rule_name("R-Has-Neg") \
-    // ("rec" { l = {l = t};};).l & arrow.long {l = { l = l;}};"   " &&#rule_name("R-Rec") \
-    ⟨"let" l_i = t_i; "in" t_2, H⟩ & arrow.long ⟨t_2[l_i = v_i], H[v_i = t_i]⟩ &&#rule_name("R-Let") \
-    ⟨"with" {l_i = t_i}; t_2, H⟩ & arrow.long ⟨t_2[l_i "⊜ " a_i ], H[a_i = t_i]⟩ &&#rule_name("R-With") \
-    ⟨"if true then "t_1" else "t_2, H⟩ & arrow.long ⟨t_1, H⟩ &&#rule_name("R-Cond-True") \
-    ⟨"if false then "t_1" else "t_2, H⟩ & arrow.long ⟨t_2, H⟩ &&#rule_name("R-Cond-False") \
-    ⟨t_1 ⧺ t_2, H⟩ & arrow.long ⟨[ …t_1, …t_2 ], H⟩ &&#rule_name("R-Array-Concat") \
-    ⟨t_1 " //" t_2, H⟩ & arrow.long ⟨{…t_2 , …t_1}, H⟩ &&#rule_name("R-Record-Concat") \
+    oi({l_i: t_i}).l & arrow.long t_i #h(0.5cm) "if" ∃i. l_i = l &&#rule_name("R-Lookup") \
+    oi({l_i = t_i}).l & arrow.long "null" "if" ∄i. l_i = l &&#rule_name("R-Lookup-Null") \
+    oi({l_i: t_i}).l" or "t & arrow.long t "if" ∃i. l_i = l &&#rule_name("R-Lookup-Default-Pos") \
+    oi({l_i: t_i}).l" or "t & arrow.long t "if" ∄i. l_i = l &&#rule_name("R-Lookup-Default-Neg") \
+    oi({l_i: t_i}).l" ? "t & arrow.long "true   if" ∃i. l_i = l &&#rule_name("R-Has-Pos") \
+    oi({l_i: t_i}).l" ? "t & arrow.long "false  if" ∄i. l_i = l &&#rule_name("R-Has-Neg") \
+    "let" oi(l_i = t_i;) "in" t_2 & arrow.long t_2 oi([l_i = v_i]) &&#rule_name("R-Let") \
+    "with" oi({l_i = t_i}); t_2 & arrow.long t_2[l_i "⊜ " a_i ] &&#rule_name("R-With") \
+    "if true then "t_1" else "t_2 & arrow.long t_1 &&#rule_name("R-Cond-True") \
+    "if false then "t_1" else "t_2 & arrow.long t_2 &&#rule_name("R-Cond-False") \
+    t_1 ⧺ t_2 & arrow.long [ …t_1, …t_2 ] &&#rule_name("R-Array-Concat") \
+    t_1 " //" t_2 & arrow.long {…t_2 , …t_1} &&#rule_name("R-Record-Concat") \
   $
+  $e → e' ==> E[e] → E[e']$
 ]
-- $"fv"$ (=force value) is a function that computes the thunk on first request, or returns the cached value on consecuetive requests.
 
-#colored_box(title: "Evaluation Rules", color: blue)[
-  #stack(
-    dir: ltr,
-    spacing: 1cm,
-    derive(
-      "F-Force-Step",
-      ($⟨a, H[a -> e]⟩$, $⟨e, H⟩ -> ⟨e', H'⟩$),
-      $⟨a, H⟩ -> ⟨a, H'[a -> e']⟩$,
-    ),
-    derive("F-Force-Value", ($H[a -> v]$, $v: "Value"$), $⟨a, H⟩ -> ⟨v, H⟩$),
-  )
-]
+// #colored_box(title: "Evaluation Rules", color: blue)[
+//   #stack(
+//     dir: ltr,
+//     spacing: 1cm,
+//     derive(
+//       "F-Force-Step",
+//       ($⟨a, H[a -> e]⟩$, $⟨e, H⟩ -> ⟨e', H'⟩$),
+//       $⟨a, H⟩ -> ⟨a, H'[a -> e']⟩$,
+//     ),
+//     derive("F-Force-Value", ($H[a -> v]$, $v: "Value"$), $⟨a, H⟩ -> ⟨v, H⟩$),
+//   )
+// ]
 
 - The _spread syntax_ ${…"rc"}$ is used to create a new record from the fields of `rc` where `rc` is a record. These new fields never overwrite existing fields, meaning `{a : int, …{a : string}}` will reduce to `{a: int}`. Similar is possible for arrays, but naturally without deduplication. For two records $A: {l_i: t_i}$ and $B: {l_i: t_i}$ this means ${..A, ..B} = {l_a = t_a; l_b = t_b;}$ where $a ∈ {i: l_i ∈ A }$ and $b ∈ { i: l_i ∈ ( B \\ A) }$. $B \\ A$ is the Record B where every label i has been removed if it is in A.
 - $l_0 … l_n$ is abbreviated as $l_i$ sometimes.

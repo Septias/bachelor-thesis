@@ -2,6 +2,7 @@
 
 // shorthand to create a simple overline and index i
 #let oi(body) = $overline(body)^i$
+#let oj(body) = $overline(body)^j$
 
 #let type_name(name) = text(
   font: ("FreeSans",),
