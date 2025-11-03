@@ -232,8 +232,8 @@ What follows are the typing and subtyping rules as well as an overview over the 
       (
         derive(
           "T-Rec-Concat",
-          ($Γ tack a: { l_i: τ_i }$, $Γ tack b: { l_j: τ_j }$),
-          $Γ tack a "//" b: {..b, ..b}$,
+          ($Γ tack a: { oi(l\: τ) }$, $Γ tack b: { l_j: τ_j }$),
+          $Γ tack a "//" b: {..b, ..a}$,
         ),
       ),
       (
@@ -348,7 +348,7 @@ Instatiation is done by cloning the inherent structure of the type but adding ne
   Constraining takes two types τ₁ and τ₂ and constraints the first type to be subtype of the other.
   #v(1cm)
   $
-    (τ_1 → τ_2), (τ_3 → τ_4) &arrow.squiggly "constrain"(τ_3, τ_1); "constrain"(τ_2, τ_4) &&#rule_name("C-Fun")\
+    "constrain"((τ_1 → τ_2), (τ_3 → τ_4)) &arrow.squiggly "constrain"(τ_3, τ_1); "constrain"(τ_2, τ_4) &&#rule_name("C-Fun")\
     {τ_1}, {τ_2} &arrow.squiggly ∀i ∈ τ_2. "constrain"(τ_(1i), τ_(2i)) "  if A" &&#rule_name("C-Rec")\
     {τ_1},({τ_2}, #text("true", weight: "bold")) &arrow.squiggly ∀i ∈ τ_2. "constrain"(τ_(1i), τ_(2i))"   if A" &&#rule_name("C-Pat-Open") \
     {τ_1} , ({τ_2}, #text("false", weight: "bold")) &arrow.squiggly ∀i ∈ τ_2. "constrain"(τ_(1i), τ_(2i)) "  if A ∧ B  "&&#rule_name("C-Pat-Closed")\
