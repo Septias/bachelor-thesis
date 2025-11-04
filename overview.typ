@@ -87,19 +87,19 @@ Patterns can be _open_ marked by the bold ellipsis (#text(weight: "bold")[…]) 
   Let $t, t_1$ and $t_2$ range over syntax terms and $l$ over identifiers (labels and variables).
   $
     (l: t_2)t_1 & arrow.long t_2[l := t_1] &&#rule_name("R-Fun") \
-    (oi({l_i}): t)oi({l_i = t_i;}) & arrow.long t oi([l_i := t_i]) &&#rule_name("R-Fun-Pat") \
-    (oi({l_i, ...}): t) oj({l_i = t_i; ..}) & arrow.long t oi([l_i := a_i])#h(0.5cm) ∀i. ∃ j. i eq j &&#rule_name("R-Fun-Pat-Open") \
-    (oi({l_i" ? "t_i, l_j}): t_2)({l_k = t_k; l_j = t_j;}) & arrow.long
-    t_2overline([l_m := a_m])^m overline([l_n = a_n])^n overline([l_j := a_j])^j &&#rule_name("R-Fun-Pat-Default") \
-    "Where" &m = {i: ∃k. i = k}; n = {i: exists.not k. i = k} \
-    oi({l_i: t_i}).l & arrow.long t_i #h(0.5cm) "if" ∃i. l_i = l &&#rule_name("R-Lookup") \
-    oi({l_i = t_i}).l & arrow.long "null" "if" ∄i. l_i = l &&#rule_name("R-Lookup-Null") \
-    oi({l_i: t_i}).l" or "t & arrow.long t "if" ∃i. l_i = l &&#rule_name("R-Lookup-Default-Pos") \
-    oi({l_i: t_i}).l" or "t & arrow.long t "if" ∄i. l_i = l &&#rule_name("R-Lookup-Default-Neg") \
-    oi({l_i: t_i}).l" ? "t & arrow.long "true   if" ∃i. l_i = l &&#rule_name("R-Has-Pos") \
-    oi({l_i: t_i}).l" ? "t & arrow.long "false  if" ∄i. l_i = l &&#rule_name("R-Has-Neg") \
-    "let" oi(l_i = t_i;) "in" t_2 & arrow.long t_2 oi([l_i = v_i]) &&#rule_name("R-Let") \
-    "with" oi({l_i = t_i}); t_2 & arrow.long t_2[l_i "⊜ " a_i ] &&#rule_name("R-With") \
+    ({oi(l_i)}: t){oi(l_i \= t_i\;)} & arrow.long t [oi(l_i := t_i)] &&#rule_name("R-Fun-Pat") \
+    ({oi(l_i)\, ...}: t) {oj(l_i = t_i)} & arrow.long t [oi(l_i := a_i)] #h(0.5cm) ∀i. ∃ j. i eq j &&#rule_name("R-Fun-Pat-Open") \
+    ({oi(l_i" ? "t_i), overline(l_j)^j}: t_2)({overline(l_k = t_k)^k; oj(l_j = t_j)}) & arrow.long
+    t_2 [overline(l_m := a_m)^m] [overline(l_n = a_n)^n] [overline(l_j := a_j)^j] &&#rule_name("R-Fun-Pat-Default") \
+    "Where" &m ∈ {i: ∃k. l_i = l_k}; n ∈ {i: exists.not k. l_i = l_k} \
+    ({oi(l_i\: t_i)}).l & arrow.long t_i #h(0.5cm) "if" ∃i. l_i = l &&#rule_name("R-Lookup") \
+    ({oi(l_i \= t_i)}).l & arrow.long "null    if" ∄i. l_i = l &&#rule_name("R-Lookup-Null") \
+    ({oi(l_i\: t_i)}).l" or "t & arrow.long t_i "   if" ∃i. l_i = l &&#rule_name("R-Lookup-Default-Pos") \
+    ({oi(l_i\: t_i)}).l" or "t & arrow.long t "   if" ∄i. l_i = l &&#rule_name("R-Lookup-Default-Neg") \
+    ({oi(l_i\: t_i)}).l" ? "t & arrow.long "true   if" ∃i. l_i = l &&#rule_name("R-Has-Pos") \
+    ({oi(l_i\: t_i)}).l" ? "t & arrow.long "false  if" ∄i. l_i = l &&#rule_name("R-Has-Neg") \
+    "let" {oi(l_i \= t_i\;)} "in" t_2 & arrow.long t_2 [oi(l_i = v_i)] &&#rule_name("R-Let") \
+    "with" {oi(l_i \= t_i\;)}; t_2 & arrow.long t_2[l_i "⊜ " a_i ] &&#rule_name("R-With") \
     "if true then "t_1" else "t_2 & arrow.long t_1 &&#rule_name("R-Cond-True") \
     "if false then "t_1" else "t_2 & arrow.long t_2 &&#rule_name("R-Cond-False") \
     t_1 ⧺ t_2 & arrow.long [ …t_1, …t_2 ] &&#rule_name("R-Array-Concat") \
@@ -412,6 +412,12 @@ To handle these, all expected record fields need to be present in the function a
 
 == Dunder Methods
 There seem to be some special dunder methods for representations which are handled specially by the evaluator. I have not had the chance to look into it further.
+
+== Closures
+Its possible to capture variables in nix:
+
+nix-repl> (let a = 2; in (b: a + b)) 3
+5
 
 
 = Laziness and Recursiveness

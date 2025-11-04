@@ -29,15 +29,26 @@ Even though that might sound like a bit, the core calculus should in theory stil
 
 For now we should stick to a syntactic definition of this style:
 
-- We assume some set ℒ of record labels which are ranged over by i ∈ ℐ and j ∈ 𝒥.
+We assume some set ℒ of record labels which are ranged over by i ∈ ℐ and j ∈ 𝒥.
 
 #derive(
   "T-Rec",
   ($oi({l_i : τ_i}) "//" overline({l_j : τ_j})^j$,),
-  $overline({l_k : τ_k})^k #h(0.5cm) { k ∈ ℐ ∪ ℐ without 𝒥 }$,
+  $overline({l_k : τ_k})^k #h(0.5cm) { k ∈ ℐ ∪ (ℐ without 𝒥) }$,
 )
 
+
 During type inference, when we reach the record-concat operator, simplify the bounds of a typevariable and force it to be a record. If both operands are records, T-Rec can be applied.
+
+
+```rust
+let ty1 = /* given */;
+let ty2 = /* given */;
+let acc_bounds = ty1.as_record().extend(ty2.as_record());
+let tyvar = context.ty_var();
+constrain(tyvar, acc_bounds);
+return tyvar;
+```
 
 TODO: find out whether to use algebraic subtyping or syntactic.
 
