@@ -33,8 +33,8 @@ We assume some set ℒ of record labels which are ranged over by i ∈ ℐ and j
 
 #derive(
   "T-Rec",
-  ($oi({l_i : τ_i}) "//" overline({l_j : τ_j})^j$,),
-  $overline({l_k : τ_k})^k #h(0.5cm) { k ∈ ℐ ∪ (ℐ without 𝒥) }$,
+  (${oi(l_i : τ_i)} "//" {overline(l_j : τ_j)^j}$,),
+  ${overline(l_k : τ_k)^k} #h(0.5cm) k ∈ { ℐ ∪ 𝒥 } #h(0.5cm) τ_k = cases(τ_i "if" ∃i. l_k = l_i, τ_j "otherwise")$,
 )
 
 

@@ -98,8 +98,8 @@ Patterns can be _open_ marked by the bold ellipsis (#text(weight: "bold")[…]) 
     ({oi(l_i\: t_i)}).l" or "t & arrow.long t "   if" ∄i. l_i = l &&#rule_name("R-Lookup-Default-Neg") \
     ({oi(l_i\: t_i)}).l" ? "t & arrow.long "true   if" ∃i. l_i = l &&#rule_name("R-Has-Pos") \
     ({oi(l_i\: t_i)}).l" ? "t & arrow.long "false  if" ∄i. l_i = l &&#rule_name("R-Has-Neg") \
-    "let" {oi(l_i \= t_i\;)} "in" t_2 & arrow.long t_2 [oi(l_i = v_i)] &&#rule_name("R-Let") \
-    "with" {oi(l_i \= t_i\;)}; t_2 & arrow.long t_2[l_i "⊜ " a_i ] &&#rule_name("R-With") \
+    "let" oi(l_i \= t_i\;) "in" t_2 & arrow.long t_2 [oi(l_i = v_i)] &&#rule_name("R-Let") \
+    "with" {oi(l_i \= t_i\;)}; t_2 & arrow.long t_2[oi(l_i "⊜ " a_i) ] &&#rule_name("R-With") \
     "if true then "t_1" else "t_2 & arrow.long t_1 &&#rule_name("R-Cond-True") \
     "if false then "t_1" else "t_2 & arrow.long t_2 &&#rule_name("R-Cond-False") \
     t_1 ⧺ t_2 & arrow.long [ …t_1, …t_2 ] &&#rule_name("R-Array-Concat") \
